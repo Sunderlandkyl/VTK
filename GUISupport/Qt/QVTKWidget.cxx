@@ -68,6 +68,10 @@
 #include "vtkRenderer.h"
 #include "vtkRendererCollection.h"
 
+#include "QPinchGesture"
+#include "QPanGesture"
+#include "QTapGesture"
+
 #if defined(VTK_USE_TDX) && (defined(Q_WS_X11) || defined(Q_OS_LINUX))
 # include "vtkTDxUnixDevice.h"
 #endif
@@ -110,6 +114,12 @@ QVTKWidget::QVTKWidget(QWidget* p, Qt::WindowFlags f)
   this->mDeferedRenderTimer.setSingleShot(true);
   this->mDeferedRenderTimer.setInterval(0);
   this->connect(&this->mDeferedRenderTimer, SIGNAL(timeout()), SLOT(doDeferredRender()));
+
+  this->grabGesture(Qt::PinchGesture);
+  this->grabGesture(Qt::SwipeGesture);
+  this->grabGesture(Qt::PanGesture);
+  this->grabGesture(Qt::TapGesture);
+  this->grabGesture(Qt::TapAndHoldGesture);
 }
 
 /*! destructor */
@@ -396,9 +406,57 @@ bool QVTKWidget::event(QEvent* e)
     return ke->isAccepted();
   }
 
+  if (e->type() == QEvent::Gesture)
+  {
+    return gestureEvent(static_cast<QGestureEvent *>(e));
+  }
+
   return QWidget::event(e);
 }
 
+bool QVTKWidget::gestureEvent(QGestureEvent* e)
+{   // retrieve vtkRenderWindowInteractor
+  vtkRenderWindowInteractor* iren = NULL;
+  if(this->mRenWin)
+  {
+    iren = this->mRenWin->GetInteractor();
+  }
+
+  if(!iren || !iren->GetEnabled())
+  {
+    return false;
+  }
+
+  // if this is a PanGesture (long tap + move), simulate a middle click + mouse move
+  if (e->gesture(Qt::PanGesture)) {
+    QPanGesture *tap = static_cast<QPanGesture*> (e->gesture(Qt::PanGesture));
+    if (tap->state()==Qt::GestureStarted) {
+    iren->SetEventInformation(iren->GetLastEventPosition()[0],
+                              iren->GetLastEventPosition()[1],
+                              0,
+                              1,
+                              0,
+                              0);
+    iren->InvokeEvent(vtkCommand::MiddleButtonPressEvent, e);
+    }
+
+    // release mouse when gesture is finished
+    if (tap->state()==Qt::GestureFinished) {
+      iren->InvokeEvent(vtkCommand::MiddleButtonReleaseEvent, e);
+    }
+  }
+
+  if (QGesture *pinch = e->gesture(Qt::PinchGesture)) {
+    QPinchGesture *ppinch = static_cast<QPinchGesture*> (pinch);
+    iren->SetPinchGestureFactor( ppinch->scaleFactor() /
+                                 ppinch->lastScaleFactor());
+    iren->InvokeEvent(vtkCommand::PinchGestureEvent);
+    iren->SetRotateGestureAngle( -1.0*(ppinch->rotationAngle()-
+                                       ppinch->lastRotationAngle()) );
+    iren->InvokeEvent(vtkCommand::RotateGestureEvent);
+  }
+  return true;
+}
 
 /*! handle resize event
  */

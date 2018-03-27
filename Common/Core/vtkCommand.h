@@ -341,7 +341,13 @@
     _vtk_add_event(FifthButtonPressEvent)\
     _vtk_add_event(FifthButtonReleaseEvent)\
     _vtk_add_event(Move3DEvent)\
-    _vtk_add_event(Button3DEvent)
+    _vtk_add_event(Button3DEvent)\
+     /*^ MacOS Events */\
+    _vtk_add_event(GestureStartEvent)\
+    _vtk_add_event(GestureEndEvent)\
+    _vtk_add_event(PinchGestureEvent)\
+    _vtk_add_event(RotateGestureEvent)\
+    _vtk_add_event(SwipeGestureEvent)
 
 #define vtkEventDeclarationMacro(_enum_name)\
   enum _enum_name{\
