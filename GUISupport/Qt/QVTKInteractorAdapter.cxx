@@ -39,6 +39,7 @@
 #include <QSignalMapper>
 #include <QTimer>
 #include <QResizeEvent>
+#include <QGestureEvent>
 
 #include "vtkCommand.h"
 
@@ -371,6 +372,72 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
     return true;
   }
 
+  if (e->type() == QEvent::Gesture)
+  {
+    QGestureEvent* e2 = static_cast<QGestureEvent*>(e);
+    if (QPinchGesture *pinch = static_cast<QPinchGesture*>(e2->gesture(Qt::PinchGesture)))
+    {
+      iren->SetScale(pinch->scaleFactor());
+      switch (pinch->state())
+      {
+      case Qt::GestureStarted:
+        iren->InvokeEvent(vtkCommand::StartPinchEvent);
+        break;
+      case Qt::GestureFinished:
+      case Qt::GestureCanceled:
+        iren->InvokeEvent(vtkCommand::EndPinchEvent);
+        break;
+      default:
+        iren->InvokeEvent(vtkCommand::PinchEvent);
+      }
+
+      iren->SetRotation(pinch->rotationAngle());
+      switch (pinch->state())
+      {
+      case Qt::GestureStarted:
+        iren->InvokeEvent(vtkCommand::StartRotateEvent);
+        break;
+      case Qt::GestureFinished:
+      case Qt::GestureCanceled:
+        iren->InvokeEvent(vtkCommand::EndRotateEvent);
+        break;
+      default:
+        iren->InvokeEvent(vtkCommand::RotateEvent);
+      }
+      return true;
+    }
+    else if (QPanGesture *pan = static_cast<QPanGesture*>(e2->gesture(Qt::PanGesture)))
+    {
+      switch (pan->state())
+      {
+      case Qt::GestureStarted:
+        iren->InvokeEvent(vtkCommand::StartPanEvent);
+        break;
+      case Qt::GestureFinished:
+      case Qt::GestureCanceled:
+        iren->InvokeEvent(vtkCommand::EndPanEvent);
+        break;
+      default:
+        iren->InvokeEvent(vtkCommand::PanEvent);
+      }
+      return true;
+    }
+    else if (QTapGesture *pan = static_cast<QTapGesture*>(e2->gesture(Qt::TapGesture)))
+    {
+      iren->InvokeEvent(vtkCommand::TapEvent);
+      return true;
+    }
+    else if (QTapAndHoldGesture *pan = static_cast<QTapAndHoldGesture*>(e2->gesture(Qt::TapAndHoldGesture)))
+    {
+      iren->InvokeEvent(vtkCommand::LongTapEvent);
+      return true;
+    }
+    else if (QSwipeGesture *pan = static_cast<QSwipeGesture*>(e2->gesture(Qt::SwipeGesture)))
+    {
+      iren->InvokeEvent(vtkCommand::SwipeEvent);
+      return true;
+    }
+  }
   return false;
 }
 
