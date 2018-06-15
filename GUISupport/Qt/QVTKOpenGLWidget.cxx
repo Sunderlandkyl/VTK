@@ -134,6 +134,13 @@ QVTKOpenGLWidget::QVTKOpenGLWidget(QWidget* parentWdg, Qt::WindowFlags f)
   // QOpenGLWidget::resized() is triggered when the default FBO in QOpenGLWidget is recreated.
   // We use the same signal to recreate our FBO.
   this->connect(this, SIGNAL(resized()), SLOT(recreateFBO()));
+
+  // enable qt gesture events
+  grabGesture(Qt::PinchGesture);
+  grabGesture(Qt::PanGesture);
+  grabGesture(Qt::TapGesture);
+  grabGesture(Qt::TapAndHoldGesture);
+  grabGesture(Qt::SwipeGesture);
 }
 
 //-----------------------------------------------------------------------------
