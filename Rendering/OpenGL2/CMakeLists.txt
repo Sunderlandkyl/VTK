@@ -57,6 +57,7 @@ set(Module_SRCS
   vtkOpenGLRenderWindow.cxx
   vtkOpenGLRenderer.cxx
   vtkOpenGLShaderCache.cxx
+  vtkOpenGLShaderProperty.cxx
   vtkOpenGLSkybox.cxx
   vtkOpenGLSphereMapper.cxx
   vtkOpenGLState.cxx
@@ -65,6 +66,7 @@ set(Module_SRCS
   vtkOpenGLTextActor3D.cxx
   vtkOpenGLTextMapper.cxx
   vtkOpenGLTexture.cxx
+  vtkOpenGLUniforms.cxx
   vtkOpenGLVertexArrayObject.cxx
   vtkOpenGLVertexBufferObject.cxx
   vtkOpenGLVertexBufferObjectCache.cxx
@@ -170,6 +172,8 @@ set(opengl_overrides
   PolyDataMapper
   PolyDataMapper2D
   Property
+  ShaderProperty
+  Uniforms
   Renderer
   RenderTimerLog
   Skybox

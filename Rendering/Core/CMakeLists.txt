@@ -83,6 +83,7 @@ set(Module_SRCS
   vtkRenderWindowInteractor3D.cxx
   vtkSelectVisiblePoints.cxx
   vtkShaderDeviceAdapter2.cxx
+  vtkShaderProperty.cxx
   vtkSkybox.cxx
   vtkTextActor.cxx
   vtkTextActor3D.cxx
@@ -91,6 +92,7 @@ set(Module_SRCS
   vtkTransformCoordinateSystems.cxx
   vtkTransformInterpolator.cxx
   vtkTupleInterpolator.cxx
+  vtkUniforms.cxx
   vtkViewDependentErrorMetric.cxx
   vtkViewport.cxx
   vtkVisibilitySort.cxx
