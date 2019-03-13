@@ -36,6 +36,7 @@ class vtkRenderWindow;
 class vtkDataArray;
 class vtkTextureObject;
 class vtkImageData;
+class vtkPixelBufferObject;
 
 class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLTextureToImageFilter : public vtkAlgorithm
 {
@@ -170,8 +171,8 @@ public:
 
   void Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage);
 
-  template<typename SOURCE_TYPE>
-  void ExecuteInternal(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outExtent[6]);
+  template<typename INPUT_TYPE, typename OUTPUT_TYPE>
+  void ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outExtent[6]);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;

@@ -71,6 +71,12 @@ void vtkOpenGLImageToTextureFilter::SetRenderWindow(vtkRenderWindow *renWin)
 }
 
 //----------------------------------------------------------------------------
+vtkRenderWindow* vtkOpenGLImageToTextureFilter::GetRenderWindow()
+{
+  return this->RenderWindow;
+}
+
+//----------------------------------------------------------------------------
 void vtkOpenGLImageToTextureFilter::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
@@ -184,6 +190,13 @@ int vtkOpenGLImageToTextureFilter::RequestData(
 //----------------------------------------------------------------------------
 void vtkOpenGLImageToTextureFilter::Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture)
 {
+  // make sure it is initialized
+  if (!this->RenderWindow)
+  {
+    this->SetRenderWindow(vtkSmartPointer<vtkRenderWindow>::New());
+    this->RenderWindow->SetOffScreenRendering(true);
+  }
+
   outputTexture->SetContext(this->RenderWindow);
   outputTexture->Create3DFromRaw(
     inputImage->GetDimensions()[0], inputImage->GetDimensions()[1], inputImage->GetDimensions()[2],

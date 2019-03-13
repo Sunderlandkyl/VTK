@@ -13,6 +13,7 @@
 #include <vtkTextureObject.h>
 #include <vtkOpenGLImageToTextureFilter.h>
 #include <vtkOpenGLTextureToImageFilter.h>
+#include <vtkTimerLog.h>
 
 #include <string>
 #include <fstream>
@@ -33,15 +34,30 @@ int main(int, char*[])
   std::string nFragShader((std::istreambuf_iterator<char>(nFragFile)),
     std::istreambuf_iterator<char>());
 
+  std::ifstream gaussianVSFile("E:/d/v/SlicerVTK/Rendering/OpenGL2/glsl/vtkGaussianBlurPassVS.glsl");
+  std::string gaussianVSSource((std::istreambuf_iterator<char>(gaussianVSFile)),
+    std::istreambuf_iterator<char>());
+
+  std::ifstream gaussianFSFile("E:/d/v/SlicerShaderApp/gauss.frag");
+  std::string gaussianFSSource((std::istreambuf_iterator<char>(gaussianFSFile)),
+    std::istreambuf_iterator<char>());
+
   vtkNew<vtkNrrdReader> reader;
   reader->SetFileName("C:/Users/kyles/Desktop/MRHead.nrrd");
   reader->Update();
   vtkNew<vtkImageData> inputImage;
   inputImage->DeepCopy(reader->GetOutput());
 
+  vtkNew<vtkTimerLog> timer;
+
+  timer->StartTimer();
   vtkSmartPointer<vtkOpenGLRenderWindow> renderWindow = vtkOpenGLRenderWindow::SafeDownCast(vtkSmartPointer<vtkRenderWindow>::New());
   renderWindow->SetOffScreenRendering(true);
   renderWindow->Initialize();
+
+  timer->StopTimer();
+  std::cout << "Establishing rendering context took: " << timer->GetElapsedTime() << "s" << std::endl;
+  timer->StartTimer();
 
   vtkNew<vtkOpenGLImageToTextureFilter> inputConvert;
   inputConvert->SetRenderWindow(renderWindow);
@@ -51,26 +67,32 @@ int main(int, char*[])
   checkerPatternGenerator->SetVertexShaderCode(vertShader);
   checkerPatternGenerator->SetFragmentShaderCode(cFragShader);
   checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
-  checkerPatternGenerator->SetRenderWindow(renderWindow); // TODO: Create one if none exists, and retreive context from input
+  checkerPatternGenerator->SetRenderWindow(renderWindow);
+  checkerPatternGenerator->SetRenderWindow(inputConvert->GetRenderWindow());
 
   vtkNew<vtkOpenGLShaderAlgorithm> shaderAlgorithm;
   shaderAlgorithm->SetVertexShaderCode(vertShader);
   shaderAlgorithm->SetFragmentShaderCode(nFragShader);
   shaderAlgorithm->SetOutputExtent(inputImage->GetExtent());
-  shaderAlgorithm->SetRenderWindow(renderWindow); // TODO: Create one if none exists, and retreive context from input
   shaderAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
   shaderAlgorithm->AddInputConnection(checkerPatternGenerator->GetOutputPort());
 
+  vtkNew<vtkOpenGLShaderAlgorithm> gaussianAlgorithm;
+  gaussianAlgorithm->SetVertexShaderCode(vertShader);
+  gaussianAlgorithm->SetFragmentShaderCode(gaussianFSSource);
+  gaussianAlgorithm->SetOutputExtent(inputImage->GetExtent());
+  gaussianAlgorithm->SetOutputScalarTypeToShort();
+  gaussianAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
+
   vtkNew<vtkOpenGLTextureToImageFilter> outputConvert;
-  outputConvert->SetInputConnection(shaderAlgorithm->GetOutputPort());
-  outputConvert->SetOutputScalarTypeToDouble();
+  outputConvert->SetInputConnection(gaussianAlgorithm->GetOutputPort());
   outputConvert->Update();
 
   vtkSmartPointer<vtkImageData> outputImage = outputConvert->GetOutput();
 
-  double scalarRange[2] = { 0.0, 0.0 };
-  outputImage->GetScalarRange(scalarRange);
-  //vtkWarningWithObjectMacro(outputImage , << scalarRange[0] << ", " << scalarRange[1]);
+  timer->StopTimer();
+  std::cout << "Shader algorithm completed: " << timer->GetElapsedTime() << "s" << std::endl;
+  timer->StartTimer();
 
   vtkNew<vtkMetaImageWriter> writer;
   writer->SetInputData(outputImage);
@@ -87,13 +109,10 @@ int main(int, char*[])
   // Visualize
   vtkSmartPointer<vtkImageViewer2> imageViewer =
     vtkSmartPointer<vtkImageViewer2>::New();
-  //imageViewer->SetInputData(inputImage);
   imageViewer->SetInputData(outputImage);
   imageViewer->GetRenderWindow()->SetSize(500, 500);
   imageViewer->GetWindowLevel()->SetWindow(imageViewer->GetInput()->GetScalarRange()[1] - imageViewer->GetInput()->GetScalarRange()[0]);
   imageViewer->GetWindowLevel()->SetLevel((imageViewer->GetInput()->GetScalarRange()[1] - imageViewer->GetInput()->GetScalarRange()[0]) / 2.0);
-  //imageViewer->GetWindowLevel()->SetWindow(1.0);
-  //imageViewer->GetWindowLevel()->SetLevel(0.5);
   imageViewer->GetRenderer()->ResetCamera();
   imageViewer->SetSlice(50);
 

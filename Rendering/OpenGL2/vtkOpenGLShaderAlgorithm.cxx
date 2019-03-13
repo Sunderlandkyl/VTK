@@ -62,6 +62,7 @@ vtkOpenGLShaderAlgorithm::~vtkOpenGLShaderAlgorithm()
   this->SetRenderWindow(nullptr);
 }
 
+// ----------------------------------------------------------------------------
 void vtkOpenGLShaderAlgorithm::SetRenderWindow(vtkRenderWindow *renWin)
 {
   if (renWin == this->RenderWindow.GetPointer())
@@ -189,6 +190,11 @@ int vtkOpenGLShaderAlgorithm::RequestData(
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
     vtkSmartPointer<vtkTextureObject> inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
     inputTextures.push_back(inputTexture);
+
+    if (!this->RenderWindow)
+    {
+      this->RenderWindow = inputTexture->GetContext();
+    }
   }
 
   this->Execute(inputTextures, outputTexture, this->VertexShaderCode, this->GeometryShaderCode, this->FragmentShaderCode);
@@ -206,11 +212,9 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
   // make sure it is initialized
   if (!this->RenderWindow)
   {
-    this->SetRenderWindow(vtkRenderWindow::New());
+    this->SetRenderWindow(vtkSmartPointer<vtkRenderWindow>::New());
     this->RenderWindow->SetOffScreenRendering(true);
-    this->RenderWindow->UnRegister(this);
   }
-  this->RenderWindow->Initialize();
 
   // could do shortcut here if the input volume is
   // exactly what we want (updateExtent == wholeExtent)
@@ -225,7 +229,7 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
   outputDimensions[2] = this->OutputExtent[5] - this->OutputExtent[4] + 1;  
 
   outputTexture->SetContext(this->RenderWindow);
-  outputTexture->Create3D(outputDimensions[0], outputDimensions[1], outputDimensions[2], 4, outputTexture->GetDataType(), false);
+  outputTexture->Create3D(outputDimensions[0], outputDimensions[1], outputDimensions[2], 4, this->OutputScalarType, false);
 
   vtkNew<vtkOpenGLFramebufferObject> fbo;
   fbo->SetContext(this->RenderWindow);
@@ -251,6 +255,9 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
     this->Quad.Program = prog;
     this->Quad.VAO->ShaderProgramChanged();
   }
+
+  ////////////////////////////////
+  // Manage and set uniforms for input textures
 
   for (int textureIndex = 0; textureIndex < inputTextures.size(); ++textureIndex)
   {
@@ -279,7 +286,10 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   }
 
-  // for each zslice in the output
+  ////////////////////////////////
+  // Render
+
+  // For each zslice in the output
   vtkPixelExtent outputPixelExt(this->OutputExtent);
   for (int i = this->OutputExtent[4]; i <= this->OutputExtent[5]; i++)
   {

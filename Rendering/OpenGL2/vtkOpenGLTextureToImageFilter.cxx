@@ -178,6 +178,7 @@ int vtkOpenGLTextureToImageFilter::RequestData(
 
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
   vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
+  this->RenderWindow = inputTexture->GetContext();
 
   this->Execute(inputTexture, outputImage);
 
@@ -187,39 +188,54 @@ int vtkOpenGLTextureToImageFilter::RequestData(
 //----------------------------------------------------------------------------
 void vtkOpenGLTextureToImageFilter::Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage)
 {
+  if (!this->RenderWindow)
+  {
+    vtkErrorMacro("Render context not set");
+  }
 
   vtkIdType textureDataType = inputTexture->GetVTKDataType();
+  vtkSmartPointer<vtkPixelBufferObject> inputPixelBuffer = vtkSmartPointer<vtkPixelBufferObject>::Take(inputTexture->Download());
 
   int outExtent[6] = { 0, 255, 0, 255, 0, 129 };
   outputImage->SetExtent(outExtent);
-  outputImage->AllocateScalars(, 1);
+  //outputImage->AllocateScalars(this->OutputScalarType, 1);
+  outputImage->AllocateScalars(textureDataType, 1);
+  void* imagePointer = outputImage->GetScalarPointer(outExtent[0], outExtent[2], outExtent[4]);
+
+  switch (vtkTemplate2PackMacro(textureDataType, textureDataType))
+  {
+    vtkTemplate2Macro((this->ExecuteInternal<VTK_T1, VTK_T2>(inputTexture, inputPixelBuffer, outputImage, outExtent)));
+  }
+  inputPixelBuffer->UnmapPackedBuffer();
+}
+
+//----------------------------------------------------------------------------
+template<typename INPUT_TYPE, typename OUTPUT_TYPE>
+void vtkOpenGLTextureToImageFilter::ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outExtent[6])
+{
+  INPUT_TYPE* texturePointer = (INPUT_TYPE*)inputPixelBuffer->MapPackedBuffer();
+  int numberOfTextureComponents = inputPixelBuffer->GetComponents();
+
+  OUTPUT_TYPE* imagePointer = (OUTPUT_TYPE*)outputImage->GetScalarPointer(outExtent[0], outExtent[2], outExtent[4]);
+  int numberOfImageComponents = outputImage->GetNumberOfScalarComponents();
 
   int outDimensions[3] = { 256,256,130 };
 
   vtkPixelExtent outputPixelExt(outExtent);
   for (int i = outExtent[4]; i <= outExtent[5]; i++)
     {
-    vtkPixelBufferObject *outPBO = inputTexture->Download();
-    //vtkTypeMa
-    vtkPixelTransfer::Blit<float, double>(
+    vtkPixelTransfer::Blit<INPUT_TYPE, OUTPUT_TYPE>(
       outputPixelExt,
       outputPixelExt,
       outputPixelExt,
       outputPixelExt,
-      4,
-      (float*)outPBO->MapPackedBuffer() + 4 * i * outDimensions[0] * outDimensions[1],
-      outputImage->GetPointData()->GetScalars()->GetNumberOfComponents(),
-      static_cast<double *>(outputImage->GetScalarPointer(outExtent[0], outExtent[2], i)));
-    outPBO->UnmapPackedBuffer();
-    outPBO->Delete();
+      numberOfTextureComponents,
+      texturePointer,
+      numberOfImageComponents,
+      imagePointer);
+    texturePointer += numberOfTextureComponents * outDimensions[0] * outDimensions[1];
+    imagePointer += numberOfImageComponents * outDimensions[0] * outDimensions[1];
     }
-}
-
-//----------------------------------------------------------------------------
-template<typename TEXTURE_TYPE>
-void vtkOpenGLTextureToImageFilter::ExecuteInternal(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outExtent[6])
-{
-
 }
 
 //----------------------------------------------------------------------------

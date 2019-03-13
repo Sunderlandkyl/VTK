@@ -28,11 +28,11 @@
 
 #include "vtkOpenGLHelper.h" // used for ivars
 #include "vtkSmartPointer.h" // for ivar
+#include "vtkRenderWindow.h"
 
 #include <vector>
 
 class vtkOpenGLRenderWindow;
-class vtkRenderWindow;
 class vtkDataArray;
 class vtkTextureObject;
 class vtkImageData;
@@ -94,6 +94,7 @@ public:
    * Set the render window to get the OpenGL resources from
    */
   void SetRenderWindow(vtkRenderWindow *renWin);
+  vtkRenderWindow* GetRenderWindow();
 
  protected:
   vtkOpenGLImageToTextureFilter();
