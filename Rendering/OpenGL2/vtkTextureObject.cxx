@@ -18,7 +18,8 @@
 
 #include "vtkObjectFactory.h"
 
-
+#include "vtkInformationKey.h"
+#include "vtkInformationObjectBaseKey.h"
 #include "vtkNew.h"
 #include "vtkOpenGLBufferObject.h"
 #include "vtkOpenGLError.h"
@@ -190,6 +191,8 @@ static GLenum OpenGLDepthInternalFormatType[7]=
 
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkTextureObject);
+
+vtkInformationKeyMacro(vtkTextureObject, CONTEXT_OBJECT, ObjectBase);
 
 //----------------------------------------------------------------------------
 vtkTextureObject::vtkTextureObject()

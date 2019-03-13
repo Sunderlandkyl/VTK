@@ -25,7 +25,7 @@
 #define vtkTextureObject_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
-#include "vtkObject.h"
+#include "vtkDataObject.h"
 #include "vtkWeakPointer.h" // for render context
 
 class vtkOpenGLBufferObject;
@@ -36,11 +36,15 @@ class vtkPixelBufferObject;
 class vtkShaderProgram;
 class vtkWindow;
 class vtkGenericOpenGLResourceFreeCallback;
+class vtkInformationObjectBaseKey;
 
+// \ingroup InformationKeys
 
-class VTKRENDERINGOPENGL2_EXPORT vtkTextureObject : public vtkObject
+class VTKRENDERINGOPENGL2_EXPORT vtkTextureObject : public vtkDataObject
 {
 public:
+
+  static vtkInformationObjectBaseKey* CONTEXT_OBJECT();
 
   // DepthTextureCompareFunction values.
   enum
@@ -103,7 +107,7 @@ public:
   };
 
   static vtkTextureObject* New();
-  vtkTypeMacro(vtkTextureObject, vtkObject);
+  vtkTypeMacro(vtkTextureObject, vtkDataObject);
   void PrintSelf(ostream& os, vtkIndent indent) override;
 
   //@{

@@ -39,6 +39,9 @@ set(Module_SRCS
   vtkOpenGLHardwareSelector.cxx
   vtkOpenGLHelper.cxx
   vtkOpenGLImageAlgorithmHelper.cxx
+  vtkOpenGLShaderAlgorithm.cxx
+  vtkOpenGLTextureToImageFilter.cxx
+  vtkOpenGLImageToTextureFilter.cxx
   vtkOpenGLImageMapper.cxx
   vtkOpenGLImageSliceMapper.cxx
   vtkOpenGLIndexBufferObject.cxx
