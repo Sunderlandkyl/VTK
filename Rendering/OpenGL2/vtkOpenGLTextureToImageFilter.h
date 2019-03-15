@@ -169,10 +169,15 @@ public:
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
 
-  void Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage);
+  //// These are called by the superclass.
+  //int RequestUpdateExtent(vtkInformation *,
+  //  vtkInformationVector **,
+  //  vtkInformationVector *);
+
+  void Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outputExtent[6]);
 
   template<typename INPUT_TYPE, typename OUTPUT_TYPE>
-  void ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outExtent[6]);
+  void ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outputExtent[6]);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;

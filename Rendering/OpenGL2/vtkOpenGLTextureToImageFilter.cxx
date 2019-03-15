@@ -35,7 +35,7 @@
 #include "vtkInformationVector.h"
 #include "vtkErrorCode.h"
 #include "vtkInformationObjectBaseKey.h"
-//#include "vtkImageShiftScale.h:
+#include "vtkStreamingDemandDrivenPipeline.h"
 
 vtkStandardNewMacro(vtkOpenGLTextureToImageFilter);
 
@@ -130,6 +130,12 @@ int vtkOpenGLTextureToImageFilter::ProcessRequest(vtkInformation* request,
     return this->RequestInformation(request, inputVector, outputVector);
   }
 
+  //// propagate update extent
+  //if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
+  //{
+  //  return this->RequestUpdateExtent(request, inputVector, outputVector);
+  //}
+
   return this->Superclass::ProcessRequest(request, inputVector, outputVector);
 }
 
@@ -143,8 +149,20 @@ int vtkOpenGLTextureToImageFilter::RequestInformation(
   return 1;
 }
 
+////----------------------------------------------------------------------------
+//int vtkOpenGLTextureToImageFilter::RequestUpdateExtent(
+//  vtkInformation * vtkNotUsed(request),
+//  vtkInformationVector **inputVector,
+//  vtkInformationVector *vtkNotUsed(outputVector))
+//{
+//  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+//  int ext[6];
+//  inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), ext);
+//  inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), ext, 6);
+//  return 1;
+//}
+
 //----------------------------------------------------------------------------
-// Always create multiblock, although it is necessary only with Threading enabled
 int vtkOpenGLTextureToImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(request),
   vtkInformationVector** vtkNotUsed(inputVector),
   vtkInformationVector* outputVector)
@@ -180,13 +198,15 @@ int vtkOpenGLTextureToImageFilter::RequestData(
   vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
   this->RenderWindow = inputTexture->GetContext();
 
-  this->Execute(inputTexture, outputImage);
+  int outputExtent[6];
+  outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outputExtent);
+  this->Execute(inputTexture, outputImage, outputExtent);
 
   return 1;
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLTextureToImageFilter::Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage)
+void vtkOpenGLTextureToImageFilter::Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outputExtent[6])
 {
   if (!this->RenderWindow)
   {
@@ -196,15 +216,14 @@ void vtkOpenGLTextureToImageFilter::Execute(vtkTextureObject* inputTexture, vtkI
   vtkIdType textureDataType = inputTexture->GetVTKDataType();
   vtkSmartPointer<vtkPixelBufferObject> inputPixelBuffer = vtkSmartPointer<vtkPixelBufferObject>::Take(inputTexture->Download());
 
-  int outExtent[6] = { 0, 255, 0, 255, 0, 129 };
-  outputImage->SetExtent(outExtent);
-  //outputImage->AllocateScalars(this->OutputScalarType, 1);
+  outputImage->SetExtent(outputExtent);
   outputImage->AllocateScalars(textureDataType, 1);
-  void* imagePointer = outputImage->GetScalarPointer(outExtent[0], outExtent[2], outExtent[4]);
+
+  void* imagePointer = outputImage->GetScalarPointer(outputExtent[0], outputExtent[2], outputExtent[4]);
 
   switch (vtkTemplate2PackMacro(textureDataType, textureDataType))
   {
-    vtkTemplate2Macro((this->ExecuteInternal<VTK_T1, VTK_T2>(inputTexture, inputPixelBuffer, outputImage, outExtent)));
+    vtkTemplate2Macro((this->ExecuteInternal<VTK_T1, VTK_T2>(inputTexture, inputPixelBuffer, outputImage, outputExtent)));
   }
   inputPixelBuffer->UnmapPackedBuffer();
 }
@@ -219,7 +238,10 @@ void vtkOpenGLTextureToImageFilter::ExecuteInternal(vtkTextureObject* inputTextu
   OUTPUT_TYPE* imagePointer = (OUTPUT_TYPE*)outputImage->GetScalarPointer(outExtent[0], outExtent[2], outExtent[4]);
   int numberOfImageComponents = outputImage->GetNumberOfScalarComponents();
 
-  int outDimensions[3] = { 256,256,130 };
+  int outDimensions[3];
+  outDimensions[0] = outExtent[1] - outExtent[0] + 1;
+  outDimensions[1] = outExtent[3] - outExtent[2] + 1;
+  outDimensions[2] = outExtent[5] - outExtent[4] + 1;
 
   vtkPixelExtent outputPixelExt(outExtent);
   for (int i = outExtent[4]; i <= outExtent[5]; i++)

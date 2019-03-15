@@ -110,6 +110,15 @@ public:
     vtkInformationVector*);
 
   /**
+  * Subclasses can reimplement this method to translate the update
+  * extent requests from each output port into update extent requests
+  * for the input connections.
+  */
+  //virtual int RequestUpdateExtent(vtkInformation*,
+  //  vtkInformationVector**,
+  //  vtkInformationVector*);
+
+  /**
    * This is called in response to a REQUEST_DATA request from the
    * executive.  Subclasses should override either this method or the
    * ExecuteDataWithInformation method in order to generate data for
@@ -119,7 +128,7 @@ public:
   virtual int RequestData(vtkInformation *request,
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
-  
+
   void Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture);
 
   // see vtkAlgorithm for docs.

@@ -9,10 +9,11 @@
 #include <vtkOpenGLRenderWindow.h>
 #include <vtkImageMapToWindowLevelColors.h>
 #include <vtkLookupTable.h>
-#include <vtkOpenGLShaderAlgorithm.h>
+#include <vtkOpenGLProgrammableShaderAlgorithm.h>
 #include <vtkTextureObject.h>
 #include <vtkOpenGLImageToTextureFilter.h>
 #include <vtkOpenGLTextureToImageFilter.h>
+#include <vtkOpenGLGaussianShaderAlgorithm.h>
 #include <vtkTimerLog.h>
 
 #include <string>
@@ -32,14 +33,6 @@ int main(int, char*[])
     std::istreambuf_iterator<char>());
   std::ifstream nFragFile("E:/d/v/SlicerShaderApp/noise.frag");
   std::string nFragShader((std::istreambuf_iterator<char>(nFragFile)),
-    std::istreambuf_iterator<char>());
-
-  std::ifstream gaussianVSFile("E:/d/v/SlicerVTK/Rendering/OpenGL2/glsl/vtkGaussianBlurPassVS.glsl");
-  std::string gaussianVSSource((std::istreambuf_iterator<char>(gaussianVSFile)),
-    std::istreambuf_iterator<char>());
-
-  std::ifstream gaussianFSFile("E:/d/v/SlicerShaderApp/gauss.frag");
-  std::string gaussianFSSource((std::istreambuf_iterator<char>(gaussianFSFile)),
     std::istreambuf_iterator<char>());
 
   vtkNew<vtkNrrdReader> reader;
@@ -63,29 +56,24 @@ int main(int, char*[])
   inputConvert->SetRenderWindow(renderWindow);
   inputConvert->SetInputDataObject(inputImage);
 
-  vtkNew<vtkOpenGLShaderAlgorithm> checkerPatternGenerator;
-  checkerPatternGenerator->SetVertexShaderCode(vertShader);
+  vtkNew<vtkOpenGLProgrammableShaderAlgorithm> checkerPatternGenerator;
   checkerPatternGenerator->SetFragmentShaderCode(cFragShader);
-  checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
   checkerPatternGenerator->SetRenderWindow(renderWindow);
-  checkerPatternGenerator->SetRenderWindow(inputConvert->GetRenderWindow());
+  checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
+  checkerPatternGenerator->Update();
 
-  vtkNew<vtkOpenGLShaderAlgorithm> shaderAlgorithm;
-  shaderAlgorithm->SetVertexShaderCode(vertShader);
-  shaderAlgorithm->SetFragmentShaderCode(nFragShader);
-  shaderAlgorithm->SetOutputExtent(inputImage->GetExtent());
-  shaderAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
-  shaderAlgorithm->AddInputConnection(checkerPatternGenerator->GetOutputPort());
-
-  vtkNew<vtkOpenGLShaderAlgorithm> gaussianAlgorithm;
-  gaussianAlgorithm->SetVertexShaderCode(vertShader);
-  gaussianAlgorithm->SetFragmentShaderCode(gaussianFSSource);
-  gaussianAlgorithm->SetOutputExtent(inputImage->GetExtent());
+  vtkNew<vtkOpenGLGaussianShaderAlgorithm> gaussianAlgorithm;
   gaussianAlgorithm->SetOutputScalarTypeToShort();
   gaussianAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
 
+  vtkNew<vtkOpenGLProgrammableShaderAlgorithm> shaderAlgorithm;
+  shaderAlgorithm->SetFragmentShaderCode(nFragShader);
+  shaderAlgorithm->AddInputConnection(gaussianAlgorithm->GetOutputPort());
+  shaderAlgorithm->AddInputData(checkerPatternGenerator->GetOutput());
+  shaderAlgorithm->SetOutputScalarTypeToShort();
+
   vtkNew<vtkOpenGLTextureToImageFilter> outputConvert;
-  outputConvert->SetInputConnection(gaussianAlgorithm->GetOutputPort());
+  outputConvert->SetInputConnection(shaderAlgorithm->GetOutputPort());
   outputConvert->Update();
 
   vtkSmartPointer<vtkImageData> outputImage = outputConvert->GetOutput();

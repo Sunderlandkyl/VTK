@@ -41,6 +41,7 @@ set(Module_SRCS
   vtkOpenGLImageAlgorithmHelper.cxx
   vtkOpenGLShaderAlgorithm.cxx
   vtkOpenGLGaussianShaderAlgorithm.cxx
+  vtkOpenGLProgrammableShaderAlgorithm.cxx
   vtkOpenGLTextureToImageFilter.cxx
   vtkOpenGLImageToTextureFilter.cxx
   vtkOpenGLImageMapper.cxx

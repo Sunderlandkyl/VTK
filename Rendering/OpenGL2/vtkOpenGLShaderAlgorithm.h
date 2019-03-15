@@ -74,6 +74,15 @@ public:
                      vtkInformationVector**,
                      vtkInformationVector*) VTK_OVERRIDE;
 
+  /**
+  * Subclasses can reimplement this method to translate the update
+  * extent requests from each output port into update extent requests
+  * for the input connections.
+  */
+  //virtual int RequestUpdateExtent(vtkInformation*,
+  //  vtkInformationVector**,
+  //  vtkInformationVector*);
+
   //@{
   /**
   * Assign a data object as input. Note that this method does not
@@ -90,7 +99,7 @@ public:
   * of this method is strongly discouraged, but some filters that were
   * written a long time ago still use this method.
   */
-  vtkDataObject *GetInput(int index);
+  vtkTextureObject *GetInput(int index);
   //@}
 
   //@{
@@ -99,7 +108,8 @@ public:
   * establish a pipeline connection. Use SetInputConnection to
   * setup a pipeline connection.
   */
-  void AddInputData(vtkDataObject *);
+  void AddInputData(vtkTextureObject *);
+
   //@}
 
   /**
@@ -115,9 +125,6 @@ public:
 
   vtkSetMacro(FragmentShaderCode, std::string);
   vtkGetMacro(FragmentShaderCode, std::string);
-
-  vtkGetVector6Macro(OutputExtent, int);
-  vtkSetVector6Macro(OutputExtent, int);
 
   //@{
   /**
@@ -191,12 +198,15 @@ public:
   virtual int RequestData(vtkInformation *request,
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
-  
+
   void Execute(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures,
                vtkTextureObject* outputTexture,
                std::string vertexShaderCode,
                std::string geometryShaderCode,
-               std::string fragmentShaderCode);
+               std::string fragmentShaderCode,
+               int outputExtent[6]);
+
+  void UpdateTextureUniforms(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;
@@ -208,8 +218,10 @@ public:
   std::string VertexShaderCode;
   std::string GeometryShaderCode;
   std::string FragmentShaderCode;
+
   int OutputScalarType;
   int OutputExtent[6];
+  bool OutputExtentSpecified;
 
  private:
   vtkOpenGLShaderAlgorithm(const vtkOpenGLShaderAlgorithm&) = delete;

@@ -35,6 +35,7 @@
 #include "vtkInformationVector.h"
 #include "vtkErrorCode.h"
 #include "vtkInformationObjectBaseKey.h"
+#include "vtkStreamingDemandDrivenPipeline.h"
 
 vtkStandardNewMacro(vtkOpenGLImageToTextureFilter);
 
@@ -92,6 +93,19 @@ void vtkOpenGLImageToTextureFilter::PrintSelf(ostream& os, vtkIndent indent)
   }
 }
 
+////----------------------------------------------------------------------------
+//int vtkOpenGLImageToTextureFilter::RequestUpdateExtent(
+//  vtkInformation* vtkNotUsed(request),
+//  vtkInformationVector** inputVector,
+//  vtkInformationVector* vtkNotUsed(outputVector))
+//{
+//  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+//  int ext[6];
+//  inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), ext);
+//  inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), ext, 6);
+//  return 1;
+//}
+
 //----------------------------------------------------------------------------
 int vtkOpenGLImageToTextureFilter::FillInputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
@@ -134,6 +148,12 @@ int vtkOpenGLImageToTextureFilter::ProcessRequest(vtkInformation* request,
     return this->RequestInformation(request, inputVector, outputVector);
   }
 
+  //// propagate update extent
+  //if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
+  //{
+  //  return this->RequestUpdateExtent(request, inputVector, outputVector);
+  //}
+
   return this->Superclass::ProcessRequest(request, inputVector, outputVector);
 }
 
@@ -148,7 +168,6 @@ int vtkOpenGLImageToTextureFilter::RequestInformation(
 }
 
 //----------------------------------------------------------------------------
-// Always create multiblock, although it is necessary only with Threading enabled
 int vtkOpenGLImageToTextureFilter::RequestDataObject(vtkInformation* vtkNotUsed(request),
   vtkInformationVector** vtkNotUsed(inputVector),
   vtkInformationVector* outputVector)
