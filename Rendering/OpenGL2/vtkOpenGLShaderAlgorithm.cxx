@@ -46,9 +46,9 @@ vtkOpenGLShaderAlgorithm::vtkOpenGLShaderAlgorithm()
 {
   this->DefaultVertexShaderSource = R"(
 //VTK::System::Dec
-in vec4 vertexMC;
-in vec2 tcoordMC;
-out vec2 tcoordVSOutput;
+attribute vec4 vertexMC;
+attribute vec2 tcoordMC;
+varying vec2 tcoordVSOutput;
 void main()
 {
   tcoordVSOutput = tcoordMC;
@@ -161,7 +161,11 @@ int vtkOpenGLShaderAlgorithm::RequestInformation(
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
 {
-  // do nothing
+  vtkInformation* outInfo = outputVector->GetInformationObject(0);
+  if (this->OutputExtentSpecified)
+  {
+    outInfo->Set(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), this->OutputExtent, 6);
+  }
   return 1;
 }
 
@@ -218,17 +222,17 @@ int vtkOpenGLShaderAlgorithm::RequestData(
   {
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
     vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
+    if (!inputTexture)
+    {
+      vtkErrorMacro("Input texture " << idx << " is missing");
+    }
+
     inputTextures.push_back(inputTexture);
 
     if (!this->RenderWindow)
     {
       this->RenderWindow = inputTexture->GetContext();
     }
-  }
-
-  if (this->OutputExtentSpecified)
-  {
-    outInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), this->OutputExtent, 6);
   }
 
   // TODO: extent calculation
@@ -265,6 +269,8 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkTextureObject*> inputTextu
     //vtkErrorMacro("");
     return;
   }
+
+  this->RenderWindow->GetShaderCache()->ReadyShaderProgram(this->ShaderProgram);
 
   // now create the framebuffer for the output
   int outputDimensions[3];
@@ -323,7 +329,6 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkTextureObject*> inputTextu
   for (int i = outputExtent[4]; i <= outputExtent[5]; i++)
   {
     this->Quad.Program->SetUniformf("zPos", (i - outputExtent[4] + 0.5) / (outputDimensions[2]));
-
     fbo->RemoveColorAttachment(fbo->GetDrawMode(), 0);
     fbo->AddColorAttachment(fbo->GetDrawMode(), 0, outputTexture, i);
     fbo->RenderQuad(
@@ -409,6 +414,12 @@ vtkTextureObject* vtkOpenGLShaderAlgorithm::GetOutput()
 vtkTextureObject* vtkOpenGLShaderAlgorithm::GetOutput(int port)
 {
   return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
+}
+
+//----------------------------------------------------------------------------
+vtkTextureObject* vtkOpenGLShaderAlgorithm::GetInput(int port)
+{
+  return vtkTextureObject::SafeDownCast(this->GetInputDataObject(port, 0));
 }
 
 //----------------------------------------------------------------------------

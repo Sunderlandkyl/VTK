@@ -58,6 +58,11 @@ int main(int, char*[])
   inputConvert->SetRenderWindow(renderWindow);
   inputConvert->SetInputDataObject(inputImage);
 
+  inputConvert->Update();
+  timer->StopTimer();
+  std::cout << "Input conversion took: " << timer->GetElapsedTime() << "s" << std::endl;
+  timer->StartTimer();
+
   vtkNew<vtkOpenGLProgrammableShaderAlgorithm> checkerPatternGenerator;
   checkerPatternGenerator->GetShaderProperty()->SetFragmentShaderCode(cFragShader.c_str());
   checkerPatternGenerator->SetRenderWindow(renderWindow);
@@ -72,18 +77,36 @@ int main(int, char*[])
   vtkNew<vtkOpenGLProgrammableShaderAlgorithm> shaderAlgorithm;
   shaderAlgorithm->GetShaderProperty()->SetFragmentShaderCode(nFragShader.c_str());
   shaderAlgorithm->AddInputConnection(gaussianAlgorithm->GetOutputPort());
-  shaderAlgorithm->AddInputData(checkerPatternGenerator->GetOutput());
+  shaderAlgorithm->AddInputConnection(checkerPatternGenerator->GetOutputPort());
+  //shaderAlgorithm->AddInputData(checkerPatternGenerator->GetOutput());
   shaderAlgorithm->SetOutputScalarTypeToShort();
+  shaderAlgorithm->Update();
+
+  timer->StopTimer();
+  std::cout << "Inital run took: " << timer->GetElapsedTime() << "s" << std::endl;
+  timer->StartTimer();
 
   vtkNew<vtkOpenGLTextureToImageFilter> outputConvert;
   outputConvert->SetInputConnection(shaderAlgorithm->GetOutputPort());
   outputConvert->Update();
 
-  vtkSmartPointer<vtkImageData> outputImage = outputConvert->GetOutput();
+  timer->StopTimer();
+  std::cout << "Output conversion took: " << timer->GetElapsedTime() << "s" << std::endl;
+  timer->StartTimer();
+
+  inputImage->Modified();
+  property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 100);
+  checkerPatternGenerator->Modified();
+  checkerPatternGenerator->Update();
+  gaussianAlgorithm->Update();
+  shaderAlgorithm->Update();
 
   timer->StopTimer();
-  std::cout << "Shader algorithm completed: " << timer->GetElapsedTime() << "s" << std::endl;
+  std::cout << "Rerun took: " << timer->GetElapsedTime() << "s" << std::endl;
   timer->StartTimer();
+
+  outputConvert->Update();
+  vtkSmartPointer<vtkImageData> outputImage = outputConvert->GetOutput();
 
   vtkNew<vtkMetaImageWriter> writer;
   writer->SetInputData(outputImage);

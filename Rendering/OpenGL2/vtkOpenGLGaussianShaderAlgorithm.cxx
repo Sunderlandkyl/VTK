@@ -24,7 +24,7 @@ vtkOpenGLGaussianShaderAlgorithm::vtkOpenGLGaussianShaderAlgorithm()
 {
   this->DefaultFragmentShaderSource = R"(
 //VTK::System::Dec
-in vec2 tcoordVSOutput;
+varying vec2 tcoordVSOutput;
 uniform float zPos;
 //VTK::AlgTexUniforms::Dec
 //VTK::Output::Dec
