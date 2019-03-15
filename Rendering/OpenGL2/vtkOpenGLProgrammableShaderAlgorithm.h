@@ -25,6 +25,7 @@
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
 #include "vtkAlgorithm.h"
+#include <vtkOpenGLShaderProperty.h>
 
 #include <vtkOpenGLShaderAlgorithm.h>
 
@@ -40,14 +41,7 @@ public:
   vtkTypeMacro(vtkOpenGLProgrammableShaderAlgorithm, vtkAlgorithm);
   void PrintSelf(ostream& os, vtkIndent indent) VTK_OVERRIDE;
 
-  vtkSetMacro(VertexShaderCode, std::string);
-  vtkGetMacro(VertexShaderCode, std::string);
-
-  vtkSetMacro(GeometryShaderCode, std::string);
-  vtkGetMacro(GeometryShaderCode, std::string);
-
-  vtkSetMacro(FragmentShaderCode, std::string);
-  vtkGetMacro(FragmentShaderCode, std::string);
+  vtkGetMacro(ShaderProperty, vtkOpenGLShaderProperty*);
 
   void SetOutputExtent(int extent[6]);
   vtkGetVector6Macro(OutputExtent, int);

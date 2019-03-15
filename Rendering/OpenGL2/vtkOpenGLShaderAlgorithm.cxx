@@ -36,22 +36,25 @@
 #include "vtkErrorCode.h"
 #include "vtkInformationObjectBaseKey.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkOpenGLShaderProperty.h"
+#include "vtkOpenGLUniforms.h"
 
 vtkStandardNewMacro(vtkOpenGLShaderAlgorithm);
 
 // ----------------------------------------------------------------------------
 vtkOpenGLShaderAlgorithm::vtkOpenGLShaderAlgorithm()
 {
-  this->VertexShaderCode = R"(
-    //VTK::System::Dec
-    attribute vec4 vertexMC;
-    attribute vec2 tcoordMC;
-    varying vec2 tcoordVSOutput;
-    void main()
-    {
-      tcoordVSOutput = tcoordMC;
-      gl_Position = vertexMC;
-    };)";
+  this->DefaultVertexShaderSource = R"(
+//VTK::System::Dec
+in vec4 vertexMC;
+in vec2 tcoordMC;
+out vec2 tcoordVSOutput;
+void main()
+{
+  tcoordVSOutput = tcoordMC;
+  gl_Position = vertexMC;
+}
+)";
 
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
@@ -143,11 +146,11 @@ int vtkOpenGLShaderAlgorithm::ProcessRequest(vtkInformation* request,
     return this->RequestInformation(request, inputVector, outputVector);
   }
 
-  //// propagate update extent
-  //if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
-  //{
-  //  return this->RequestUpdateExtent(request, inputVector, outputVector);
-  //}
+  // propagate update extent
+  if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
+  {
+    return this->RequestUpdateExtent(request, inputVector, outputVector);
+  }
 
   return this->Superclass::ProcessRequest(request, inputVector, outputVector);
 }
@@ -179,21 +182,21 @@ int vtkOpenGLShaderAlgorithm::RequestDataObject(vtkInformation* vtkNotUsed(reque
 }
 
 //----------------------------------------------------------------------------
-//int vtkOpenGLShaderAlgorithm::RequestUpdateExtent(
-//  vtkInformation* vtkNotUsed(request),
-//  vtkInformationVector** inputVector,
-//  vtkInformationVector* outputVector)
-//{
-//  vtkInformation* outInfo = outputVector->GetInformationObject(0);
-//  for (int idx = 0; idx < this->GetNumberOfInputConnections(0); ++idx)
-//  {
-//    vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
-//    int ext[6];
-//    inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), ext);
-//    inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), ext, 6);
-//  }
-//  return 1;
-//}
+int vtkOpenGLShaderAlgorithm::RequestUpdateExtent(
+  vtkInformation* vtkNotUsed(request),
+  vtkInformationVector** inputVector,
+  vtkInformationVector* outputVector)
+{
+  vtkInformation* outInfo = outputVector->GetInformationObject(0);
+  for (int idx = 0; idx < this->GetNumberOfInputConnections(0); ++idx)
+  {
+    vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
+    int ext[6];
+    inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), ext);
+    inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), ext, 6);
+  }
+  return 1;
+}
 
 //----------------------------------------------------------------------------
 int vtkOpenGLShaderAlgorithm::RequestData(
@@ -210,11 +213,11 @@ int vtkOpenGLShaderAlgorithm::RequestData(
   vtkInformation *outInfo = outputVector->GetInformationObject(outputPort);
   vtkTextureObject *outputTexture = vtkTextureObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
 
-  std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures;
+  std::vector<vtkTextureObject*> inputTextures;
   for (int idx = 0; idx < this->GetNumberOfInputConnections(0); ++idx)
   {
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
-    vtkSmartPointer<vtkTextureObject> inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
+    vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
     inputTextures.push_back(inputTexture);
 
     if (!this->RenderWindow)
@@ -235,17 +238,14 @@ int vtkOpenGLShaderAlgorithm::RequestData(
     outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outExtent);
   }
 
-  this->Execute(inputTextures, outputTexture, this->VertexShaderCode, this->GeometryShaderCode, this->FragmentShaderCode, outExtent);
+  this->Execute(inputTextures, outputTexture, outExtent);
 
   return 1;
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures,
+void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkTextureObject*> inputTextures,
                                        vtkTextureObject* outputTexture,
-                                       std::string vertexShaderCode,
-                                       std::string geometryShaderCode,
-                                       std::string fragmentShaderCode,
                                        int outputExtent[6])
 {
   // make sure it is initialized
@@ -253,6 +253,17 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
   {
     this->SetRenderWindow(vtkSmartPointer<vtkRenderWindow>::New());
     this->RenderWindow->SetOffScreenRendering(true);
+  }
+
+  if (this->ShaderRebuildNeeded())
+  {
+    this->BuildShader(inputTextures, outputTexture);
+  }
+
+  if (!this->ShaderProgram)
+  {
+    //vtkErrorMacro("");
+    return;
   }
 
   // now create the framebuffer for the output
@@ -279,13 +290,16 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
   ostate->vtkglScissor(0, 0, outputDimensions[0], outputDimensions[1]);
   ostate->vtkglDisable(GL_DEPTH_TEST);
 
-  vtkShaderProgram *prog = this->RenderWindow->GetShaderCache()->ReadyShaderProgram(
-    this->VertexShaderCode.c_str(),
-    this->FragmentShaderCode.c_str(),
-    this->GeometryShaderCode.c_str());
-  if (prog != this->Quad.Program)
+
+  // Upload the value of user-defined uniforms in the program
+  auto vu = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetVertexCustomUniforms());
+  vu->SetUniforms(this->ShaderProgram);
+  auto fu = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetFragmentCustomUniforms());
+  fu->SetUniforms(this->ShaderProgram);
+
+  if (this->ShaderProgram != this->Quad.Program)
   {
-    this->Quad.Program = prog;
+    this->Quad.Program = this->ShaderProgram;
     this->Quad.VAO->ShaderProgramChanged();
   }
 
@@ -299,7 +313,7 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   }
 
-  this->UpdateTextureUniforms(inputTextures);
+  this->UpdateTextureUniforms(inputTextures, outputTexture);
 
   ////////////////////////////////
   // Render
@@ -320,8 +334,33 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkSmartPointer<vtkTextureObj
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::UpdateTextureUniforms(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures)
+void vtkOpenGLShaderAlgorithm::UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
 {
+  float shift = 0.0;
+  float scale = 1.0;
+  outputTexture->GetShiftAndScale(shift, scale);
+
+  // Provide shift and scale to get the data backing into its original units
+  std::stringstream outputShiftSS;
+  outputShiftSS << "outputShift";
+  std::string outputShiftString = outputShiftSS.str();
+  this->Quad.Program->SetUniformf(outputShiftString.c_str(), shift);
+
+  std::stringstream outputScaleSS;
+  outputScaleSS << "outputScale";
+  std::string outputScaleString = outputScaleSS.str();
+  this->Quad.Program->SetUniformf(outputScaleString.c_str(), scale);
+
+  float outputTextureDimensions[3] = { 0,0,0 };
+  outputTextureDimensions[0] = outputTexture->GetWidth();
+  outputTextureDimensions[1] = outputTexture->GetHeight();
+  outputTextureDimensions[2] = outputTexture->GetDepth();
+  std::stringstream outputSizeSS;
+  outputSizeSS << "outputSize";
+  std::string outputSizeString = outputSizeSS.str();
+  this->Quad.Program->SetUniform3f(outputSizeString.c_str(), outputTextureDimensions);
+
+
   ////////////////////////////////
   // Manage input textures
   for (int textureIndex = 0; textureIndex < inputTextures.size(); ++textureIndex)
@@ -372,7 +411,153 @@ vtkTextureObject* vtkOpenGLShaderAlgorithm::GetOutput(int port)
   return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
 }
 
+//----------------------------------------------------------------------------
 void vtkOpenGLShaderAlgorithm::AddInputData(vtkTextureObject* input)
 {
   this->AddInputDataInternal(0, input);
+}
+
+//----------------------------------------------------------------------------
+bool vtkOpenGLShaderAlgorithm::ShaderRebuildNeeded()
+{
+  return (
+      !this->ShaderProgram
+    || this->ShaderBuildTime.GetMTime() < this->ShaderProperty->GetMTime()
+    );
+
+}
+
+//----------------------------------------------------------------------------
+void vtkOpenGLShaderAlgorithm::BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+{
+
+  std::map<vtkShader::Type, vtkShader*> shaders;
+  vtkSmartPointer<vtkShader> vertexShader = vtkSmartPointer<vtkShader>::New();
+  vertexShader->SetType(vtkShader::Vertex);
+  shaders[vtkShader::Vertex] = vertexShader;
+
+  vtkSmartPointer<vtkShader> fragmentShader = vtkSmartPointer<vtkShader>::New();
+  fragmentShader->SetType(vtkShader::Fragment);
+  shaders[vtkShader::Fragment] = fragmentShader;
+
+  vtkSmartPointer<vtkShader> geometryShader = vtkSmartPointer<vtkShader>::New();
+  geometryShader->SetType(vtkShader::Geometry);
+  shaders[vtkShader::Geometry] = geometryShader;
+
+  if (shaders[vtkShader::Vertex])
+  {
+    if (this->ShaderProperty->HasVertexShaderCode())
+    {
+      shaders[vtkShader::Vertex]->SetSource(this->ShaderProperty->GetVertexShaderCode());
+    }
+    else
+    {
+      shaders[vtkShader::Vertex]->SetSource(this->DefaultVertexShaderSource);
+    }
+  }
+
+  if (shaders[vtkShader::Fragment])
+  {
+    if (this->ShaderProperty->HasFragmentShaderCode())
+    {
+      shaders[vtkShader::Fragment]->SetSource(this->ShaderProperty->GetFragmentShaderCode());
+    }
+    else
+    {
+      shaders[vtkShader::Fragment]->SetSource(this->DefaultFragmentShaderSource);
+    }
+  }
+
+  //TODO
+  if (shaders[vtkShader::Geometry])
+  {
+    shaders[vtkShader::Geometry]->SetSource(this->DefaultGeometryShaderSource);
+  }
+
+  // user specified pre replacements
+  vtkOpenGLShaderProperty::ReplacementMap repMap = this->ShaderProperty->GetAllShaderReplacements();
+  for (auto i : repMap)
+  {
+    if (i.first.ReplaceFirst)
+    {
+      std::string ssrc = shaders[i.first.ShaderType]->GetSource();
+      vtkShaderProgram::Substitute(ssrc,
+        i.first.OriginalValue,
+        i.second.Replacement,
+        i.second.ReplaceAll);
+      shaders[i.first.ShaderType]->SetSource(ssrc);
+    }
+  }
+
+  // Custom uniform variables replacements
+  //---------------------------------------------------------------------------
+  this->ReplaceShaderCustomUniforms(shaders, this->ShaderProperty);
+
+  // Custom uniform variables replacements
+  //---------------------------------------------------------------------------
+  this->ReplaceShaderTextureInput(shaders, inputTextures, outputTexture);
+
+  // user specified post replacements
+  for (auto i : repMap)
+  {
+    if (!i.first.ReplaceFirst)
+    {
+      std::string ssrc = shaders[i.first.ShaderType]->GetSource();
+      vtkShaderProgram::Substitute(ssrc,
+        i.first.OriginalValue,
+        i.second.Replacement,
+        i.second.ReplaceAll);
+      shaders[i.first.ShaderType]->SetSource(ssrc);
+    }
+  }
+
+  this->ShaderProgram = this->RenderWindow->GetShaderCache()->ReadyShaderProgram(shaders);
+  if (!this->ShaderProgram)
+  {
+    vtkErrorMacro("Shader failed to compile");
+  }
+  this->ShaderBuildTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkOpenGLShaderAlgorithm::ReplaceShaderCustomUniforms(
+  std::map<vtkShader::Type, vtkShader*>& shaders, vtkOpenGLShaderProperty * p)
+{
+  vtkShader* vertexShader = shaders[vtkShader::Vertex];
+  vtkOpenGLUniforms * vu = static_cast<vtkOpenGLUniforms*>(p->GetVertexCustomUniforms());
+  vtkShaderProgram::Substitute(vertexShader,
+    "//VTK::CustomUniforms::Dec",
+    vu->GetDeclarations());
+
+  vtkShader* fragmentShader = shaders[vtkShader::Fragment];
+  vtkOpenGLUniforms * fu = static_cast<vtkOpenGLUniforms*>(p->GetFragmentCustomUniforms());
+  vtkShaderProgram::Substitute(fragmentShader,
+    "//VTK::CustomUniforms::Dec",
+    fu->GetDeclarations());
+}
+
+//----------------------------------------------------------------------------
+void vtkOpenGLShaderAlgorithm::ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+{
+  std::stringstream textureUniformReplacementSS;
+
+  textureUniformReplacementSS << "uniform vec3 outputShift;" << std::endl;
+  textureUniformReplacementSS << "uniform vec3 outputScale;" << std::endl;
+  textureUniformReplacementSS << "uniform vec3 outputSize;" << std::endl;
+
+  for (int textureIndex = 0; textureIndex < inputTextures.size(); ++textureIndex)
+  {
+    textureUniformReplacementSS << "uniform sampler3D inputTex" << textureIndex << ";" << std::endl;
+    textureUniformReplacementSS << "uniform vec3 inputShift" << textureIndex << ";" << std::endl;
+    textureUniformReplacementSS << "uniform vec3 inputScale" << textureIndex << ";" << std::endl;
+    textureUniformReplacementSS << "uniform vec3 inputSize" << textureIndex << ";" << std::endl;
+  }
+
+  for (std::map<vtkShader::Type, vtkShader*>::iterator shaderIt = shaders.begin(); shaderIt != shaders.end(); ++shaderIt)
+  {
+    vtkShader* shader = shaderIt->second;
+    vtkShaderProgram::Substitute(shader,
+      "//VTK::AlgTexUniforms::Dec",
+      textureUniformReplacementSS.str());
+  }
 }

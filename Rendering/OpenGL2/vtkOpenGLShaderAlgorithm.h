@@ -25,6 +25,8 @@
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
 #include "vtkAlgorithm.h"
+#include "vtkShader.h"
+#include <map>
 
 #include "vtkOpenGLHelper.h" // used for ivars
 #include "vtkSmartPointer.h" // for ivar
@@ -35,6 +37,7 @@ class vtkOpenGLRenderWindow;
 class vtkRenderWindow;
 class vtkDataArray;
 class vtkTextureObject;
+class vtkOpenGLShaderProperty;
 
 class vtkOpenGLImageAlgorithmCallback
 {
@@ -79,9 +82,9 @@ public:
   * extent requests from each output port into update extent requests
   * for the input connections.
   */
-  //virtual int RequestUpdateExtent(vtkInformation*,
-  //  vtkInformationVector**,
-  //  vtkInformationVector*);
+  virtual int RequestUpdateExtent(vtkInformation*,
+    vtkInformationVector**,
+    vtkInformationVector*);
 
   //@{
   /**
@@ -116,15 +119,6 @@ public:
    * Set the render window to get the OpenGL resources from
    */
   void SetRenderWindow(vtkRenderWindow *renWin);
-
-  vtkSetMacro(VertexShaderCode, std::string);
-  vtkGetMacro(VertexShaderCode, std::string);
-
-  vtkSetMacro(GeometryShaderCode, std::string);
-  vtkGetMacro(GeometryShaderCode, std::string);
-
-  vtkSetMacro(FragmentShaderCode, std::string);
-  vtkGetMacro(FragmentShaderCode, std::string);
 
   //@{
   /**
@@ -199,29 +193,37 @@ public:
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
 
-  void Execute(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures,
+  bool ShaderRebuildNeeded();
+  void BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+
+  void Execute(std::vector<vtkTextureObject*> inputTextures,
                vtkTextureObject* outputTexture,
-               std::string vertexShaderCode,
-               std::string geometryShaderCode,
-               std::string fragmentShaderCode,
                int outputExtent[6]);
 
-  void UpdateTextureUniforms(std::vector<vtkSmartPointer<vtkTextureObject> > inputTextures);
+  void ReplaceShaderCustomUniforms(std::map<vtkShader::Type, vtkShader*>& shaders, vtkOpenGLShaderProperty * p);
+  void ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+
+  void UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;
   int FillOutputPortInformation(int, vtkInformation*) override;
 
   vtkSmartPointer<vtkOpenGLRenderWindow> RenderWindow;
-  vtkOpenGLHelper Quad;
+  vtkNew<vtkOpenGLShaderProperty> ShaderProperty;
 
-  std::string VertexShaderCode;
-  std::string GeometryShaderCode;
-  std::string FragmentShaderCode;
+  vtkOpenGLHelper Quad;
 
   int OutputScalarType;
   int OutputExtent[6];
   bool OutputExtentSpecified;
+
+  std::string DefaultVertexShaderSource;
+  std::string DefaultFragmentShaderSource;
+  std::string DefaultGeometryShaderSource;
+
+  vtkShaderProgram* ShaderProgram;
+  vtkTimeStamp ShaderBuildTime;
 
  private:
   vtkOpenGLShaderAlgorithm(const vtkOpenGLShaderAlgorithm&) = delete;

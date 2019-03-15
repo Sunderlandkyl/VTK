@@ -15,6 +15,8 @@
 #include <vtkOpenGLTextureToImageFilter.h>
 #include <vtkOpenGLGaussianShaderAlgorithm.h>
 #include <vtkTimerLog.h>
+#include <vtkOpenGLShaderProperty.h>
+#include <vtkUniforms.h>
 
 #include <string>
 #include <fstream>
@@ -57,17 +59,18 @@ int main(int, char*[])
   inputConvert->SetInputDataObject(inputImage);
 
   vtkNew<vtkOpenGLProgrammableShaderAlgorithm> checkerPatternGenerator;
-  checkerPatternGenerator->SetFragmentShaderCode(cFragShader);
+  checkerPatternGenerator->GetShaderProperty()->SetFragmentShaderCode(cFragShader.c_str());
   checkerPatternGenerator->SetRenderWindow(renderWindow);
   checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
-  checkerPatternGenerator->Update();
+  vtkOpenGLShaderProperty* property = checkerPatternGenerator->GetShaderProperty();
+  property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 10);
 
   vtkNew<vtkOpenGLGaussianShaderAlgorithm> gaussianAlgorithm;
   gaussianAlgorithm->SetOutputScalarTypeToShort();
   gaussianAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
 
   vtkNew<vtkOpenGLProgrammableShaderAlgorithm> shaderAlgorithm;
-  shaderAlgorithm->SetFragmentShaderCode(nFragShader);
+  shaderAlgorithm->GetShaderProperty()->SetFragmentShaderCode(nFragShader.c_str());
   shaderAlgorithm->AddInputConnection(gaussianAlgorithm->GetOutputPort());
   shaderAlgorithm->AddInputData(checkerPatternGenerator->GetOutput());
   shaderAlgorithm->SetOutputScalarTypeToShort();
