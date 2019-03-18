@@ -47,16 +47,8 @@ int main(int, char*[])
   vtkNew<vtkTimerLog> timer;
 
   timer->StartTimer();
-  vtkSmartPointer<vtkOpenGLRenderWindow> renderWindow = vtkOpenGLRenderWindow::SafeDownCast(vtkSmartPointer<vtkRenderWindow>::New());
-  renderWindow->SetOffScreenRendering(true);
-  renderWindow->Initialize();
-
-  timer->StopTimer();
-  std::cout << "Establishing rendering context took: " << timer->GetElapsedTime() << "s" << std::endl;
-  timer->StartTimer();
 
   vtkNew<vtkImageToGPUImageFilter> inputConvert;
-  inputConvert->SetRenderWindow(renderWindow);
   inputConvert->SetInputDataObject(inputImage);
 
   inputConvert->Update();
@@ -66,7 +58,7 @@ int main(int, char*[])
 
   vtkNew<vtkGPUSimpleImageFilter> checkerPatternGenerator;
   checkerPatternGenerator->GetShaderProperty()->SetFragmentShaderCode(cFragShader.c_str());
-  checkerPatternGenerator->SetRenderWindow(renderWindow);
+  checkerPatternGenerator->SetRenderWindow(inputConvert->GetRenderWindow());
   checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
   vtkOpenGLShaderProperty* property = checkerPatternGenerator->GetShaderProperty();
   property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 10);
@@ -79,7 +71,6 @@ int main(int, char*[])
   shaderAlgorithm->GetShaderProperty()->SetFragmentShaderCode(nFragShader.c_str());
   shaderAlgorithm->AddInputConnection(gaussianAlgorithm->GetOutputPort());
   shaderAlgorithm->AddInputConnection(checkerPatternGenerator->GetOutputPort());
-  //shaderAlgorithm->AddInputData(checkerPatternGenerator->GetOutput());
   shaderAlgorithm->SetOutputScalarTypeToShort();
   shaderAlgorithm->Update();
 
@@ -95,10 +86,7 @@ int main(int, char*[])
   std::cout << "Output conversion took: " << timer->GetElapsedTime() << "s" << std::endl;
   timer->StartTimer();
 
-  inputImage->Modified();
   property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 100);
-  checkerPatternGenerator->Modified();
-  gaussianAlgorithm->Update();
   shaderAlgorithm->Update();
 
   timer->StopTimer();
