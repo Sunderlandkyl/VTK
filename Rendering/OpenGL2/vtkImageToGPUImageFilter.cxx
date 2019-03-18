@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLImageToTextureFilter.cxx
+  Module:    vtkImageToGPUImageFilter.cxx
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,7 +13,7 @@
 
 =========================================================================*/
 
-#include "vtkOpenGLImageToTextureFilter.h"
+#include "vtkImageToGPUImageFilter.h"
 #include "vtkObjectFactory.h"
 #include "vtkTextureObject.h"
 #include "vtkOpenGLRenderWindow.h"
@@ -37,10 +37,10 @@
 #include "vtkInformationObjectBaseKey.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
 
-vtkStandardNewMacro(vtkOpenGLImageToTextureFilter);
+vtkStandardNewMacro(vtkImageToGPUImageFilter);
 
 //----------------------------------------------------------------------------
-vtkOpenGLImageToTextureFilter::vtkOpenGLImageToTextureFilter()
+vtkImageToGPUImageFilter::vtkImageToGPUImageFilter()
 {
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
@@ -48,13 +48,13 @@ vtkOpenGLImageToTextureFilter::vtkOpenGLImageToTextureFilter()
 }
 
 //----------------------------------------------------------------------------
-vtkOpenGLImageToTextureFilter::~vtkOpenGLImageToTextureFilter()
+vtkImageToGPUImageFilter::~vtkImageToGPUImageFilter()
 {
   this->SetRenderWindow(nullptr);
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLImageToTextureFilter::SetRenderWindow(vtkRenderWindow *renWin)
+void vtkImageToGPUImageFilter::SetRenderWindow(vtkRenderWindow *renWin)
 {
   if (renWin == this->RenderWindow.GetPointer())
   {
@@ -72,13 +72,13 @@ void vtkOpenGLImageToTextureFilter::SetRenderWindow(vtkRenderWindow *renWin)
 }
 
 //----------------------------------------------------------------------------
-vtkRenderWindow* vtkOpenGLImageToTextureFilter::GetRenderWindow()
+vtkRenderWindow* vtkImageToGPUImageFilter::GetRenderWindow()
 {
   return this->RenderWindow;
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLImageToTextureFilter::PrintSelf(ostream& os, vtkIndent indent)
+void vtkImageToGPUImageFilter::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
 
@@ -94,7 +94,7 @@ void vtkOpenGLImageToTextureFilter::PrintSelf(ostream& os, vtkIndent indent)
 }
 
 ////----------------------------------------------------------------------------
-//int vtkOpenGLImageToTextureFilter::RequestUpdateExtent(
+//int vtkImageToGPUImageFilter::RequestUpdateExtent(
 //  vtkInformation* vtkNotUsed(request),
 //  vtkInformationVector** inputVector,
 //  vtkInformationVector* vtkNotUsed(outputVector))
@@ -107,7 +107,7 @@ void vtkOpenGLImageToTextureFilter::PrintSelf(ostream& os, vtkIndent indent)
 //}
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::FillInputPortInformation(
+int vtkImageToGPUImageFilter::FillInputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   info->Set(vtkAlgorithm::INPUT_IS_REPEATABLE(), 1);
@@ -116,7 +116,7 @@ int vtkOpenGLImageToTextureFilter::FillInputPortInformation(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::FillOutputPortInformation(
+int vtkImageToGPUImageFilter::FillOutputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   // now add our info
@@ -126,7 +126,7 @@ int vtkOpenGLImageToTextureFilter::FillOutputPortInformation(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::ProcessRequest(vtkInformation* request,
+int vtkImageToGPUImageFilter::ProcessRequest(vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
 {
@@ -158,7 +158,7 @@ int vtkOpenGLImageToTextureFilter::ProcessRequest(vtkInformation* request,
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::RequestInformation(
+int vtkImageToGPUImageFilter::RequestInformation(
   vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
@@ -168,7 +168,7 @@ int vtkOpenGLImageToTextureFilter::RequestInformation(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::RequestDataObject(vtkInformation* vtkNotUsed(request),
+int vtkImageToGPUImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(request),
   vtkInformationVector** vtkNotUsed(inputVector),
   vtkInformationVector* outputVector)
 {
@@ -184,7 +184,7 @@ int vtkOpenGLImageToTextureFilter::RequestDataObject(vtkInformation* vtkNotUsed(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLImageToTextureFilter::RequestData(
+int vtkImageToGPUImageFilter::RequestData(
   vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
@@ -207,7 +207,7 @@ int vtkOpenGLImageToTextureFilter::RequestData(
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLImageToTextureFilter::Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture)
+void vtkImageToGPUImageFilter::Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture)
 {
   // make sure it is initialized
   if (!this->RenderWindow)
@@ -224,13 +224,13 @@ void vtkOpenGLImageToTextureFilter::Execute(vtkImageData* inputImage, vtkTexture
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkOpenGLImageToTextureFilter::GetOutput()
+vtkTextureObject* vtkImageToGPUImageFilter::GetOutput()
 {
   return this->GetOutput(0);
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkOpenGLImageToTextureFilter::GetOutput(int port)
+vtkTextureObject* vtkImageToGPUImageFilter::GetOutput(int port)
 {
   return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
 }

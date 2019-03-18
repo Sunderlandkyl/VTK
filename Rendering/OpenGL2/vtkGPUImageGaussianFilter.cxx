@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLGaussianShaderAlgorithm.cxx
+  Module:    vtkGPUImageGaussianFilter.cxx
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,14 +13,14 @@
 
 =========================================================================*/
 
-#include "vtkOpenGLGaussianShaderAlgorithm.h"
+#include "vtkGPUImageGaussianFilter.h"
 #include "vtkObjectFactory.h"
 #include "vtkOpenGLShaderProperty.h"
 
-vtkStandardNewMacro(vtkOpenGLGaussianShaderAlgorithm);
+vtkStandardNewMacro(vtkGPUImageGaussianFilter);
 
 // ----------------------------------------------------------------------------
-vtkOpenGLGaussianShaderAlgorithm::vtkOpenGLGaussianShaderAlgorithm()
+vtkGPUImageGaussianFilter::vtkGPUImageGaussianFilter()
 {
   this->DefaultFragmentShaderSource = R"(
 //VTK::System::Dec
@@ -78,12 +78,12 @@ void main()
 }
 
 // ----------------------------------------------------------------------------
-vtkOpenGLGaussianShaderAlgorithm::~vtkOpenGLGaussianShaderAlgorithm()
+vtkGPUImageGaussianFilter::~vtkGPUImageGaussianFilter()
 {
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLGaussianShaderAlgorithm::PrintSelf(ostream& os, vtkIndent indent)
+void vtkGPUImageGaussianFilter::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
 }

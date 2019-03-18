@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLGaussianShaderAlgorithm.h
+  Module:    vtkGPUImageGaussianFilter.h
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,34 +13,34 @@
 
 =========================================================================*/
 /**
- * @class   vtkOpenGLGaussianShaderAlgorithm
+ * @class   vtkGPUImageGaussianFilter
  * @brief   Help image algorithms use the GPU
  *
  * Designed to make it easier to accelerate an image algorithm on the GPU
 */
 
-#ifndef vtkOpenGLGaussianShaderAlgorithm_h
-#define vtkOpenGLGaussianShaderAlgorithm_h
+#ifndef vtkGPUImageGaussianFilter_h
+#define vtkGPUImageGaussianFilter_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
-#include "vtkOpenGLShaderAlgorithm.h"
+#include "vtkGPUAbstractImageFilter.h"
 
-class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLGaussianShaderAlgorithm : public vtkOpenGLShaderAlgorithm
+class VTKRENDERINGOPENGL2_EXPORT vtkGPUImageGaussianFilter : public vtkGPUAbstractImageFilter
 {
 public:
-  static vtkOpenGLGaussianShaderAlgorithm *New();
-  vtkTypeMacro(vtkOpenGLGaussianShaderAlgorithm, vtkAlgorithm);
+  static vtkGPUImageGaussianFilter *New();
+  vtkTypeMacro(vtkGPUImageGaussianFilter, vtkGPUAbstractImageFilter);
   void PrintSelf(ostream& os, vtkIndent indent) VTK_OVERRIDE;
 
  protected:
-  vtkOpenGLGaussianShaderAlgorithm();
-  ~vtkOpenGLGaussianShaderAlgorithm() VTK_OVERRIDE;
+  vtkGPUImageGaussianFilter();
+  ~vtkGPUImageGaussianFilter() VTK_OVERRIDE;
 
  private:
-  vtkOpenGLGaussianShaderAlgorithm(const vtkOpenGLGaussianShaderAlgorithm&) = delete;
-  void operator=(const vtkOpenGLGaussianShaderAlgorithm&) = delete;
+  vtkGPUImageGaussianFilter(const vtkGPUImageGaussianFilter&) = delete;
+  void operator=(const vtkGPUImageGaussianFilter&) = delete;
 };
 
 #endif
 
-// VTK-HeaderTest-Exclude: vtkOpenGLGaussianShaderAlgorithm.h
+// VTK-HeaderTest-Exclude: vtkGPUImageGaussianFilter.h

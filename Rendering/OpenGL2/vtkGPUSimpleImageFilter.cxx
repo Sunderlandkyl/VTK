@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLProgrammableShaderAlgorithm.cxx
+  Module:    vtkGPUSimpleImageFilter.cxx
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,23 +13,23 @@
 
 =========================================================================*/
 
-#include <vtkOpenGLProgrammableShaderAlgorithm.h>
+#include <vtkGPUSimpleImageFilter.h>
 #include <vtkObjectFactory.h>
 
-vtkStandardNewMacro(vtkOpenGLProgrammableShaderAlgorithm);
+vtkStandardNewMacro(vtkGPUSimpleImageFilter);
 
 // ----------------------------------------------------------------------------
-vtkOpenGLProgrammableShaderAlgorithm::vtkOpenGLProgrammableShaderAlgorithm()
+vtkGPUSimpleImageFilter::vtkGPUSimpleImageFilter()
 {
 }
 
 // ----------------------------------------------------------------------------
-vtkOpenGLProgrammableShaderAlgorithm::~vtkOpenGLProgrammableShaderAlgorithm()
+vtkGPUSimpleImageFilter::~vtkGPUSimpleImageFilter()
 {
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLProgrammableShaderAlgorithm::SetOutputExtent(int extent[6])
+void vtkGPUSimpleImageFilter::SetOutputExtent(int extent[6])
 {
   for (int i = 0; i < 6; ++i)
   {
@@ -40,7 +40,7 @@ void vtkOpenGLProgrammableShaderAlgorithm::SetOutputExtent(int extent[6])
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLProgrammableShaderAlgorithm::ClearOutputExtent()
+void vtkGPUSimpleImageFilter::ClearOutputExtent()
 {
   for (int i = 0; i < 6; ++i)
   {
@@ -51,7 +51,7 @@ void vtkOpenGLProgrammableShaderAlgorithm::ClearOutputExtent()
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLProgrammableShaderAlgorithm::PrintSelf(ostream& os, vtkIndent indent)
+void vtkGPUSimpleImageFilter::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
 }

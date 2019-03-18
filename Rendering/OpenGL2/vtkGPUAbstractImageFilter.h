@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLTextureToImageFilter.h
+  Module:    vtkGPUAbstractImageFilter.h
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,18 +13,20 @@
 
 =========================================================================*/
 /**
- * @class   vtkOpenGLTextureToImageFilter
+ * @class   vtkGPUAbstractImageFilter
  * @brief   Help image algorithms use the GPU
  *
  * Designed to make it easier to accelerate an image algorithm on the GPU
 */
 
-#ifndef vtkOpenGLTextureToImageFilter_h
-#define vtkOpenGLTextureToImageFilter_h
+#ifndef vtkGPUAbstractImageFilter_h
+#define vtkGPUAbstractImageFilter_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
 #include "vtkAlgorithm.h"
+#include "vtkShader.h"
+#include <map>
 
 #include "vtkOpenGLHelper.h" // used for ivars
 #include "vtkSmartPointer.h" // for ivar
@@ -35,22 +37,21 @@ class vtkOpenGLRenderWindow;
 class vtkRenderWindow;
 class vtkDataArray;
 class vtkTextureObject;
-class vtkImageData;
-class vtkPixelBufferObject;
+class vtkOpenGLShaderProperty;
 
-class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLTextureToImageFilter : public vtkAlgorithm
+class VTKRENDERINGOPENGL2_EXPORT vtkGPUAbstractImageFilter : public vtkAlgorithm
 {
 public:
-  static vtkOpenGLTextureToImageFilter *New();
-  vtkTypeMacro(vtkOpenGLTextureToImageFilter, vtkAlgorithm);
+  static vtkGPUAbstractImageFilter *New();
+  vtkTypeMacro(vtkGPUAbstractImageFilter, vtkAlgorithm);
   void PrintSelf(ostream& os, vtkIndent indent) VTK_OVERRIDE;
 
   //@{
   /**
   * Get the output data object for a port on this algorithm.
   */
-  vtkImageData* GetOutput();
-  vtkImageData* GetOutput(int);
+  vtkTextureObject* GetOutput();
+  vtkTextureObject* GetOutput(int);
   void SetOutput(vtkDataObject* d);
   //@}
 
@@ -62,6 +63,15 @@ public:
   int ProcessRequest(vtkInformation*,
                      vtkInformationVector**,
                      vtkInformationVector*) VTK_OVERRIDE;
+
+  /**
+  * Subclasses can reimplement this method to translate the update
+  * extent requests from each output port into update extent requests
+  * for the input connections.
+  */
+  virtual int RequestUpdateExtent(vtkInformation*,
+    vtkInformationVector**,
+    vtkInformationVector*);
 
   //@{
   /**
@@ -79,7 +89,7 @@ public:
   * of this method is strongly discouraged, but some filters that were
   * written a long time ago still use this method.
   */
-  vtkDataObject *GetInput(int index);
+  vtkTextureObject *GetInput(int index);
   //@}
 
   //@{
@@ -88,7 +98,8 @@ public:
   * establish a pipeline connection. Use SetInputConnection to
   * setup a pipeline connection.
   */
-  void AddInputData(vtkDataObject *);
+  void AddInputData(vtkTextureObject *);
+
   //@}
 
   /**
@@ -146,8 +157,8 @@ public:
   //@}
 
  protected:
-  vtkOpenGLTextureToImageFilter();
-  ~vtkOpenGLTextureToImageFilter() VTK_OVERRIDE;
+  vtkGPUAbstractImageFilter();
+  ~vtkGPUAbstractImageFilter() VTK_OVERRIDE;
 
   int RequestInformation(vtkInformation *,
     vtkInformationVector **,
@@ -169,30 +180,43 @@ public:
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
 
-  //// These are called by the superclass.
-  //int RequestUpdateExtent(vtkInformation *,
-  //  vtkInformationVector **,
-  //  vtkInformationVector *);
+  bool ShaderRebuildNeeded();
+  void BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
 
-  void Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outputExtent[6]);
+  void Execute(std::vector<vtkTextureObject*> inputTextures,
+               vtkTextureObject* outputTexture,
+               int outputExtent[6]);
 
-  template<typename INPUT_TYPE, typename OUTPUT_TYPE>
-  void ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outputExtent[6]);
+  void ReplaceShaderCustomUniforms(std::map<vtkShader::Type, vtkShader*>& shaders, vtkOpenGLShaderProperty * p);
+  void ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+
+  void UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;
   int FillOutputPortInformation(int, vtkInformation*) override;
 
   vtkSmartPointer<vtkOpenGLRenderWindow> RenderWindow;
+  vtkNew<vtkOpenGLShaderProperty> ShaderProperty;
+
   vtkOpenGLHelper Quad;
 
   int OutputScalarType;
+  int OutputExtent[6];
+  bool OutputExtentSpecified;
+
+  std::string DefaultVertexShaderSource;
+  std::string DefaultFragmentShaderSource;
+  std::string DefaultGeometryShaderSource;
+
+  vtkShaderProgram* ShaderProgram;
+  vtkTimeStamp ShaderBuildTime;
 
  private:
-  vtkOpenGLTextureToImageFilter(const vtkOpenGLTextureToImageFilter&) = delete;
-  void operator=(const vtkOpenGLTextureToImageFilter&) = delete;
+  vtkGPUAbstractImageFilter(const vtkGPUAbstractImageFilter&) = delete;
+  void operator=(const vtkGPUAbstractImageFilter&) = delete;
 };
 
 #endif
 
-// VTK-HeaderTest-Exclude: vtkOpenGLTextureToImageFilter.h
+// VTK-HeaderTest-Exclude: vtkGPUAbstractImageFilter.h

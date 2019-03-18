@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLImageToTextureFilter.h
+  Module:    vtkImageToGPUImageFilter.h
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,14 +13,14 @@
 
 =========================================================================*/
 /**
- * @class   vtkOpenGLImageToTextureFilter
+ * @class   vtkImageToGPUImageFilter
  * @brief   Help image algorithms use the GPU
  *
  * Designed to make it easier to accelerate an image algorithm on the GPU
 */
 
-#ifndef vtkOpenGLImageToTextureFilter_h
-#define vtkOpenGLImageToTextureFilter_h
+#ifndef vtkImageToGPUImageFilter_h
+#define vtkImageToGPUImageFilter_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
@@ -37,11 +37,11 @@ class vtkDataArray;
 class vtkTextureObject;
 class vtkImageData;
 
-class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLImageToTextureFilter : public vtkAlgorithm
+class VTKRENDERINGOPENGL2_EXPORT vtkImageToGPUImageFilter : public vtkAlgorithm
 {
 public:
-  static vtkOpenGLImageToTextureFilter *New();
-  vtkTypeMacro(vtkOpenGLImageToTextureFilter, vtkAlgorithm);
+  static vtkImageToGPUImageFilter *New();
+  vtkTypeMacro(vtkImageToGPUImageFilter, vtkAlgorithm);
   void PrintSelf(ostream& os, vtkIndent indent) VTK_OVERRIDE;
 
   //@{
@@ -97,8 +97,8 @@ public:
   vtkRenderWindow* GetRenderWindow();
 
  protected:
-  vtkOpenGLImageToTextureFilter();
-  ~vtkOpenGLImageToTextureFilter() VTK_OVERRIDE;
+  vtkImageToGPUImageFilter();
+  ~vtkImageToGPUImageFilter() VTK_OVERRIDE;
 
   int RequestInformation(vtkInformation *,
     vtkInformationVector **,
@@ -139,10 +139,10 @@ public:
   vtkOpenGLHelper Quad;
 
 private:
-  vtkOpenGLImageToTextureFilter(const vtkOpenGLImageToTextureFilter&) = delete;
-  void operator=(const vtkOpenGLImageToTextureFilter&) = delete;
+  vtkImageToGPUImageFilter(const vtkImageToGPUImageFilter&) = delete;
+  void operator=(const vtkImageToGPUImageFilter&) = delete;
 };
 
 #endif
 
-// VTK-HeaderTest-Exclude: vtkOpenGLImageToTextureFilter.h
+// VTK-HeaderTest-Exclude: vtkImageToGPUImageFilter.h

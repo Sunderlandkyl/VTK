@@ -9,14 +9,15 @@
 #include <vtkOpenGLRenderWindow.h>
 #include <vtkImageMapToWindowLevelColors.h>
 #include <vtkLookupTable.h>
-#include <vtkOpenGLProgrammableShaderAlgorithm.h>
 #include <vtkTextureObject.h>
-#include <vtkOpenGLImageToTextureFilter.h>
-#include <vtkOpenGLTextureToImageFilter.h>
-#include <vtkOpenGLGaussianShaderAlgorithm.h>
 #include <vtkTimerLog.h>
 #include <vtkOpenGLShaderProperty.h>
 #include <vtkUniforms.h>
+
+#include <vtkImageToGPUImageFilter.h>
+#include <vtkGPUSimpleImageFilter.h>
+#include <vtkGPUImageToImageFilter.h>
+#include <vtkGPUImageGaussianFilter.h>
 
 #include <string>
 #include <fstream>
@@ -54,7 +55,7 @@ int main(int, char*[])
   std::cout << "Establishing rendering context took: " << timer->GetElapsedTime() << "s" << std::endl;
   timer->StartTimer();
 
-  vtkNew<vtkOpenGLImageToTextureFilter> inputConvert;
+  vtkNew<vtkImageToGPUImageFilter> inputConvert;
   inputConvert->SetRenderWindow(renderWindow);
   inputConvert->SetInputDataObject(inputImage);
 
@@ -63,18 +64,18 @@ int main(int, char*[])
   std::cout << "Input conversion took: " << timer->GetElapsedTime() << "s" << std::endl;
   timer->StartTimer();
 
-  vtkNew<vtkOpenGLProgrammableShaderAlgorithm> checkerPatternGenerator;
+  vtkNew<vtkGPUSimpleImageFilter> checkerPatternGenerator;
   checkerPatternGenerator->GetShaderProperty()->SetFragmentShaderCode(cFragShader.c_str());
   checkerPatternGenerator->SetRenderWindow(renderWindow);
   checkerPatternGenerator->SetOutputExtent(inputImage->GetExtent());
   vtkOpenGLShaderProperty* property = checkerPatternGenerator->GetShaderProperty();
   property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 10);
 
-  vtkNew<vtkOpenGLGaussianShaderAlgorithm> gaussianAlgorithm;
+  vtkNew<vtkGPUImageGaussianFilter> gaussianAlgorithm;
   gaussianAlgorithm->SetOutputScalarTypeToShort();
   gaussianAlgorithm->AddInputConnection(inputConvert->GetOutputPort());
 
-  vtkNew<vtkOpenGLProgrammableShaderAlgorithm> shaderAlgorithm;
+  vtkNew<vtkGPUSimpleImageFilter> shaderAlgorithm;
   shaderAlgorithm->GetShaderProperty()->SetFragmentShaderCode(nFragShader.c_str());
   shaderAlgorithm->AddInputConnection(gaussianAlgorithm->GetOutputPort());
   shaderAlgorithm->AddInputConnection(checkerPatternGenerator->GetOutputPort());
@@ -86,7 +87,7 @@ int main(int, char*[])
   std::cout << "Inital run took: " << timer->GetElapsedTime() << "s" << std::endl;
   timer->StartTimer();
 
-  vtkNew<vtkOpenGLTextureToImageFilter> outputConvert;
+  vtkNew<vtkGPUImageToImageFilter> outputConvert;
   outputConvert->SetInputConnection(shaderAlgorithm->GetOutputPort());
   outputConvert->Update();
 
@@ -97,7 +98,6 @@ int main(int, char*[])
   inputImage->Modified();
   property->GetFragmentCustomUniforms()->SetUniformi("boxSize", 100);
   checkerPatternGenerator->Modified();
-  checkerPatternGenerator->Update();
   gaussianAlgorithm->Update();
   shaderAlgorithm->Update();
 

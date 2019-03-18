@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLShaderAlgorithm.cxx
+  Module:    vtkGPUAbstractImageFilter.cxx
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,7 +13,7 @@
 
 =========================================================================*/
 
-#include "vtkOpenGLShaderAlgorithm.h"
+#include "vtkGPUAbstractImageFilter.h"
 #include "vtkObjectFactory.h"
 #include "vtkTextureObject.h"
 #include "vtkOpenGLRenderWindow.h"
@@ -39,10 +39,10 @@
 #include "vtkOpenGLShaderProperty.h"
 #include "vtkOpenGLUniforms.h"
 
-vtkStandardNewMacro(vtkOpenGLShaderAlgorithm);
+vtkStandardNewMacro(vtkGPUAbstractImageFilter);
 
 // ----------------------------------------------------------------------------
-vtkOpenGLShaderAlgorithm::vtkOpenGLShaderAlgorithm()
+vtkGPUAbstractImageFilter::vtkGPUAbstractImageFilter()
 {
   this->DefaultVertexShaderSource = R"(
 //VTK::System::Dec
@@ -64,13 +64,13 @@ void main()
 }
 
 // ----------------------------------------------------------------------------
-vtkOpenGLShaderAlgorithm::~vtkOpenGLShaderAlgorithm()
+vtkGPUAbstractImageFilter::~vtkGPUAbstractImageFilter()
 {
   this->SetRenderWindow(nullptr);
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::SetRenderWindow(vtkRenderWindow *renWin)
+void vtkGPUAbstractImageFilter::SetRenderWindow(vtkRenderWindow *renWin)
 {
   if (renWin == this->RenderWindow.GetPointer())
   {
@@ -88,7 +88,7 @@ void vtkOpenGLShaderAlgorithm::SetRenderWindow(vtkRenderWindow *renWin)
 }
 
 // ----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::PrintSelf(ostream& os, vtkIndent indent)
+void vtkGPUAbstractImageFilter::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os,indent);
 
@@ -104,7 +104,7 @@ void vtkOpenGLShaderAlgorithm::PrintSelf(ostream& os, vtkIndent indent)
 }
 
 // ----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::FillInputPortInformation(int port, vtkInformation* info)
+int vtkGPUAbstractImageFilter::FillInputPortInformation(int port, vtkInformation* info)
 {
   info->Set(vtkAlgorithm::INPUT_IS_REPEATABLE(), 1);
   info->Set(vtkAlgorithm::INPUT_IS_OPTIONAL(), 1);
@@ -113,7 +113,7 @@ int vtkOpenGLShaderAlgorithm::FillInputPortInformation(int port, vtkInformation*
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::FillOutputPortInformation(
+int vtkGPUAbstractImageFilter::FillOutputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   // now add our info
@@ -123,7 +123,7 @@ int vtkOpenGLShaderAlgorithm::FillOutputPortInformation(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::ProcessRequest(vtkInformation* request,
+int vtkGPUAbstractImageFilter::ProcessRequest(vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
 {
@@ -156,7 +156,7 @@ int vtkOpenGLShaderAlgorithm::ProcessRequest(vtkInformation* request,
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::RequestInformation(
+int vtkGPUAbstractImageFilter::RequestInformation(
   vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
@@ -170,7 +170,7 @@ int vtkOpenGLShaderAlgorithm::RequestInformation(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::RequestDataObject(vtkInformation* vtkNotUsed(request),
+int vtkGPUAbstractImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(request),
   vtkInformationVector** vtkNotUsed(inputVector),
   vtkInformationVector* outputVector)
 {
@@ -186,7 +186,7 @@ int vtkOpenGLShaderAlgorithm::RequestDataObject(vtkInformation* vtkNotUsed(reque
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::RequestUpdateExtent(
+int vtkGPUAbstractImageFilter::RequestUpdateExtent(
   vtkInformation* vtkNotUsed(request),
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
@@ -203,7 +203,7 @@ int vtkOpenGLShaderAlgorithm::RequestUpdateExtent(
 }
 
 //----------------------------------------------------------------------------
-int vtkOpenGLShaderAlgorithm::RequestData(
+int vtkGPUAbstractImageFilter::RequestData(
   vtkInformation* request,
   vtkInformationVector** inputVector,
   vtkInformationVector* outputVector)
@@ -248,7 +248,7 @@ int vtkOpenGLShaderAlgorithm::RequestData(
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkTextureObject*> inputTextures,
+void vtkGPUAbstractImageFilter::Execute(std::vector<vtkTextureObject*> inputTextures,
                                        vtkTextureObject* outputTexture,
                                        int outputExtent[6])
 {
@@ -339,7 +339,7 @@ void vtkOpenGLShaderAlgorithm::Execute(std::vector<vtkTextureObject*> inputTextu
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
 {
   float shift = 0.0;
   float scale = 1.0;
@@ -405,31 +405,31 @@ void vtkOpenGLShaderAlgorithm::UpdateTextureUniforms(std::vector<vtkTextureObjec
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkOpenGLShaderAlgorithm::GetOutput()
+vtkTextureObject* vtkGPUAbstractImageFilter::GetOutput()
 {
   return this->GetOutput(0);
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkOpenGLShaderAlgorithm::GetOutput(int port)
+vtkTextureObject* vtkGPUAbstractImageFilter::GetOutput(int port)
 {
   return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkOpenGLShaderAlgorithm::GetInput(int port)
+vtkTextureObject* vtkGPUAbstractImageFilter::GetInput(int port)
 {
   return vtkTextureObject::SafeDownCast(this->GetInputDataObject(port, 0));
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::AddInputData(vtkTextureObject* input)
+void vtkGPUAbstractImageFilter::AddInputData(vtkTextureObject* input)
 {
   this->AddInputDataInternal(0, input);
 }
 
 //----------------------------------------------------------------------------
-bool vtkOpenGLShaderAlgorithm::ShaderRebuildNeeded()
+bool vtkGPUAbstractImageFilter::ShaderRebuildNeeded()
 {
   return (
       !this->ShaderProgram
@@ -439,7 +439,7 @@ bool vtkOpenGLShaderAlgorithm::ShaderRebuildNeeded()
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
 {
 
   std::map<vtkShader::Type, vtkShader*> shaders;
@@ -531,7 +531,7 @@ void vtkOpenGLShaderAlgorithm::BuildShader(std::vector<vtkTextureObject*> inputT
 }
 
 //-----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::ReplaceShaderCustomUniforms(
+void vtkGPUAbstractImageFilter::ReplaceShaderCustomUniforms(
   std::map<vtkShader::Type, vtkShader*>& shaders, vtkOpenGLShaderProperty * p)
 {
   vtkShader* vertexShader = shaders[vtkShader::Vertex];
@@ -548,7 +548,7 @@ void vtkOpenGLShaderAlgorithm::ReplaceShaderCustomUniforms(
 }
 
 //----------------------------------------------------------------------------
-void vtkOpenGLShaderAlgorithm::ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
 {
   std::stringstream textureUniformReplacementSS;
 

@@ -1,7 +1,7 @@
 /*=========================================================================
 
   Program:   Visualization Toolkit
-  Module:    vtkOpenGLProgrammableShaderAlgorithm.h
+  Module:    vtkGPUSimpleImageFilter.h
 
   Copyright (c) Ken Martin, Will Schroeder, Bill Lorensen
   All rights reserved.
@@ -13,32 +13,32 @@
 
 =========================================================================*/
 /**
- * @class   vtkOpenGLProgrammableShaderAlgorithm
+ * @class   vtkGPUSimpleImageFilter
  * @brief   Help image algorithms use the GPU
  *
  * Designed to make it easier to accelerate an image algorithm on the GPU
 */
 
-#ifndef vtkOpenGLProgrammableShaderAlgorithm_h
-#define vtkOpenGLProgrammableShaderAlgorithm_h
+#ifndef vtkGPUSimpleImageFilter_h
+#define vtkGPUSimpleImageFilter_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
 #include "vtkObject.h"
 #include "vtkAlgorithm.h"
 #include <vtkOpenGLShaderProperty.h>
 
-#include <vtkOpenGLShaderAlgorithm.h>
+#include <vtkGPUAbstractImageFilter.h>
 
 #include "vtkOpenGLHelper.h" // used for ivars
 #include "vtkSmartPointer.h" // for ivar
 
 #include <vector>
 
-class VTKRENDERINGOPENGL2_EXPORT vtkOpenGLProgrammableShaderAlgorithm : public vtkOpenGLShaderAlgorithm
+class VTKRENDERINGOPENGL2_EXPORT vtkGPUSimpleImageFilter : public vtkGPUAbstractImageFilter
 {
 public:
-  static vtkOpenGLProgrammableShaderAlgorithm *New();
-  vtkTypeMacro(vtkOpenGLProgrammableShaderAlgorithm, vtkAlgorithm);
+  static vtkGPUSimpleImageFilter *New();
+  vtkTypeMacro(vtkGPUSimpleImageFilter, vtkGPUAbstractImageFilter);
   void PrintSelf(ostream& os, vtkIndent indent) VTK_OVERRIDE;
 
   vtkGetMacro(ShaderProperty, vtkOpenGLShaderProperty*);
@@ -48,14 +48,14 @@ public:
   void ClearOutputExtent();
 
  protected:
-  vtkOpenGLProgrammableShaderAlgorithm();
-  ~vtkOpenGLProgrammableShaderAlgorithm() VTK_OVERRIDE;
+  vtkGPUSimpleImageFilter();
+  ~vtkGPUSimpleImageFilter() VTK_OVERRIDE;
 
  private:
-  vtkOpenGLProgrammableShaderAlgorithm(const vtkOpenGLProgrammableShaderAlgorithm&) = delete;
-  void operator=(const vtkOpenGLProgrammableShaderAlgorithm&) = delete;
+  vtkGPUSimpleImageFilter(const vtkGPUSimpleImageFilter&) = delete;
+  void operator=(const vtkGPUSimpleImageFilter&) = delete;
 };
 
 #endif
 
-// VTK-HeaderTest-Exclude: vtkOpenGLProgrammableShaderAlgorithm.h
+// VTK-HeaderTest-Exclude: vtkGPUSimpleImageFilter.h
