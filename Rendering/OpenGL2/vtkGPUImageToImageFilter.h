@@ -34,6 +34,7 @@
 class vtkOpenGLRenderWindow;
 class vtkRenderWindow;
 class vtkDataArray;
+class vtkGPUImageData;
 class vtkTextureObject;
 class vtkImageData;
 class vtkPixelBufferObject;
@@ -174,10 +175,10 @@ public:
   //  vtkInformationVector **,
   //  vtkInformationVector *);
 
-  void Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outputExtent[6]);
+  void Execute(vtkGPUImageData* inputTexture, vtkImageData* outputImage);
 
-  template<typename INPUT_TYPE, typename OUTPUT_TYPE>
-  void ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outputExtent[6]);
+  template<typename DATA_TYPE>
+  void ExecuteInternal(vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;

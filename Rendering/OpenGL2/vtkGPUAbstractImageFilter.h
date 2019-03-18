@@ -23,21 +23,19 @@
 #define vtkGPUAbstractImageFilter_h
 
 #include "vtkRenderingOpenGL2Module.h" // For export macro
-#include "vtkObject.h"
 #include "vtkAlgorithm.h"
+#include "vtkObject.h"
+#include "vtkOpenGLHelper.h"
 #include "vtkShader.h"
+#include "vtkSmartPointer.h"
+
 #include <map>
-
-#include "vtkOpenGLHelper.h" // used for ivars
-#include "vtkSmartPointer.h" // for ivar
-
 #include <vector>
 
+class vtkGPUImageData;
 class vtkOpenGLRenderWindow;
-class vtkRenderWindow;
-class vtkDataArray;
-class vtkTextureObject;
 class vtkOpenGLShaderProperty;
+class vtkRenderWindow;
 
 class VTKRENDERINGOPENGL2_EXPORT vtkGPUAbstractImageFilter : public vtkAlgorithm
 {
@@ -50,8 +48,8 @@ public:
   /**
   * Get the output data object for a port on this algorithm.
   */
-  vtkTextureObject* GetOutput();
-  vtkTextureObject* GetOutput(int);
+  vtkGPUImageData* GetOutput();
+  vtkGPUImageData* GetOutput(int);
   void SetOutput(vtkDataObject* d);
   //@}
 
@@ -89,7 +87,7 @@ public:
   * of this method is strongly discouraged, but some filters that were
   * written a long time ago still use this method.
   */
-  vtkTextureObject *GetInput(int index);
+  vtkGPUImageData *GetInput(int index);
   //@}
 
   //@{
@@ -98,7 +96,7 @@ public:
   * establish a pipeline connection. Use SetInputConnection to
   * setup a pipeline connection.
   */
-  void AddInputData(vtkTextureObject *);
+  void AddInputData(vtkGPUImageData *);
 
   //@}
 
@@ -156,6 +154,9 @@ public:
   }
   //@}
 
+  vtkGetMacro(NumberOfComponents, int);
+  vtkSetMacro(NumberOfComponents, int);
+
  protected:
   vtkGPUAbstractImageFilter();
   ~vtkGPUAbstractImageFilter() VTK_OVERRIDE;
@@ -181,20 +182,20 @@ public:
                           vtkInformationVector* outputVector);
 
   bool ShaderRebuildNeeded();
-  void BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+  void BuildShader(std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture);
 
-  void Execute(std::vector<vtkTextureObject*> inputTextures,
-               vtkTextureObject* outputTexture,
-               int outputExtent[6]);
+  int Execute(std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture);
 
   void ReplaceShaderCustomUniforms(std::map<vtkShader::Type, vtkShader*>& shaders, vtkOpenGLShaderProperty * p);
-  void ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+  void ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture);
 
-  void UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture);
+  void UpdateTextureUniforms(std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;
   int FillOutputPortInformation(int, vtkInformation*) override;
+
+  void ShaderPropertyModifed(vtkObject*, unsigned long, void*);
 
   vtkSmartPointer<vtkOpenGLRenderWindow> RenderWindow;
   vtkNew<vtkOpenGLShaderProperty> ShaderProperty;
@@ -202,8 +203,11 @@ public:
   vtkOpenGLHelper Quad;
 
   int OutputScalarType;
+
   int OutputExtent[6];
   bool OutputExtentSpecified;
+
+  int NumberOfComponents;
 
   std::string DefaultVertexShaderSource;
   std::string DefaultFragmentShaderSource;

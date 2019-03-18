@@ -12,30 +12,19 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-
 #include "vtkImageToGPUImageFilter.h"
-#include "vtkObjectFactory.h"
-#include "vtkTextureObject.h"
-#include "vtkOpenGLRenderWindow.h"
-#include "vtkDataArray.h"
-#include "vtkImageData.h"
-#include "vtkNew.h"
-#include "vtkOpenGLFramebufferObject.h"
-#include "vtkOpenGLShaderCache.h"
-#include "vtkOpenGLState.h"
+
 #include "vtk_glew.h"
-#include "vtkPixelTransfer.h"
-#include "vtkPointData.h"
-#include "vtkPixelBufferObject.h"
-#include "vtkShaderProgram.h"
-#include "vtkOpenGLVertexArrayObject.h"
-#include <sstream>
+#include "vtkGPUImageData.h"
+#include "vtkImageData.h"
 #include "vtkInformation.h"
-#include "vtkDemandDrivenPipeline.h"
 #include "vtkInformationVector.h"
-#include "vtkErrorCode.h"
-#include "vtkInformationObjectBaseKey.h"
+#include "vtkObjectFactory.h"
+#include "vtkOpenGLRenderWindow.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkTextureObject.h"
+
+#include <sstream>
 
 vtkStandardNewMacro(vtkImageToGPUImageFilter);
 
@@ -120,8 +109,8 @@ int vtkImageToGPUImageFilter::FillOutputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   // now add our info
-  info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTextureObject");
-  info->Set(vtkTextureObject::CONTEXT_OBJECT(), this->RenderWindow);
+  info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkGPUImageData");
+  info->Set(vtkGPUImageData::CONTEXT_OBJECT(), this->RenderWindow);
   return 1;
 }
 
@@ -173,10 +162,10 @@ int vtkImageToGPUImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(reque
   vtkInformationVector* outputVector)
 {
   vtkInformation* outInfo = outputVector->GetInformationObject(0);
-  vtkTextureObject *output = vtkTextureObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+  vtkGPUImageData *output = vtkGPUImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
   if (!output)
   {
-    vtkTextureObject* newOutput = vtkTextureObject::New();
+    vtkGPUImageData* newOutput = vtkGPUImageData::New();
     outInfo->Set(vtkDataObject::DATA_OBJECT(), newOutput);
     newOutput->Delete();
   }
@@ -199,15 +188,16 @@ int vtkImageToGPUImageFilter::RequestData(
   vtkSmartPointer<vtkImageData> inputImage = vtkImageData::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
 
   vtkInformation *outInfo = outputVector->GetInformationObject(outputPort);
-  vtkTextureObject *outputTexture = vtkTextureObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+  vtkGPUImageData *outputGPUImage = vtkGPUImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
 
-  this->Execute(inputImage, outputTexture);
+  this->Execute(inputImage, outputGPUImage);
 
+  outputGPUImage->SetExtent(outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT()));
   return 1;
 }
 
 //----------------------------------------------------------------------------
-void vtkImageToGPUImageFilter::Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture)
+void vtkImageToGPUImageFilter::Execute(vtkImageData* inputImage, vtkGPUImageData* outputGPUImage)
 {
   // make sure it is initialized
   if (!this->RenderWindow)
@@ -216,21 +206,21 @@ void vtkImageToGPUImageFilter::Execute(vtkImageData* inputImage, vtkTextureObjec
     this->RenderWindow->SetOffScreenRendering(true);
   }
 
-  outputTexture->SetContext(this->RenderWindow);
-  outputTexture->Create3DFromRaw(
+  outputGPUImage->SetContext(this->RenderWindow);
+  outputGPUImage->GetTextureObject()->Create3DFromRaw(
     inputImage->GetDimensions()[0], inputImage->GetDimensions()[1], inputImage->GetDimensions()[2],
     inputImage->GetNumberOfScalarComponents(),
     inputImage->GetScalarType(), inputImage->GetScalarPointer());
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkImageToGPUImageFilter::GetOutput()
+vtkGPUImageData* vtkImageToGPUImageFilter::GetOutput()
 {
   return this->GetOutput(0);
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkImageToGPUImageFilter::GetOutput(int port)
+vtkGPUImageData* vtkImageToGPUImageFilter::GetOutput(int port)
 {
-  return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
+  return vtkGPUImageData::SafeDownCast(this->GetOutputDataObject(port));
 }

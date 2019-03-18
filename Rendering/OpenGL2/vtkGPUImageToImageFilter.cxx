@@ -12,30 +12,21 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-
 #include "vtkGPUImageToImageFilter.h"
-#include "vtkObjectFactory.h"
-#include "vtkTextureObject.h"
-#include "vtkOpenGLRenderWindow.h"
-#include "vtkDataArray.h"
-#include "vtkImageData.h"
-#include "vtkNew.h"
-#include "vtkOpenGLFramebufferObject.h"
-#include "vtkOpenGLShaderCache.h"
-#include "vtkOpenGLState.h"
+
 #include "vtk_glew.h"
-#include "vtkPixelTransfer.h"
-#include "vtkPointData.h"
-#include "vtkPixelBufferObject.h"
-#include "vtkShaderProgram.h"
-#include "vtkOpenGLVertexArrayObject.h"
-#include <sstream>
+#include "vtkGPUImageData.h"
+#include "vtkImageData.h"
 #include "vtkInformation.h"
-#include "vtkDemandDrivenPipeline.h"
 #include "vtkInformationVector.h"
-#include "vtkErrorCode.h"
-#include "vtkInformationObjectBaseKey.h"
+#include "vtkObjectFactory.h"
+#include "vtkOpenGLRenderWindow.h"
+#include "vtkPixelBufferObject.h"
+#include "vtkPixelTransfer.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkTextureObject.h"
+
+#include <sstream>
 
 vtkStandardNewMacro(vtkGPUImageToImageFilter);
 
@@ -92,7 +83,7 @@ void vtkGPUImageToImageFilter::PrintSelf(ostream& os, vtkIndent indent)
 int vtkGPUImageToImageFilter::FillInputPortInformation(int port, vtkInformation* info)
 {
   info->Set(vtkAlgorithm::INPUT_IS_REPEATABLE(), 1);
-  info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkTextureObject");
+  info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkGPUImageData");
   return 1;
 }
 
@@ -102,7 +93,7 @@ int vtkGPUImageToImageFilter::FillOutputPortInformation(
 {
   // now add our info
   info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkImageData");
-  info->Set(vtkTextureObject::CONTEXT_OBJECT(), this->RenderWindow);
+  info->Set(vtkGPUImageData::CONTEXT_OBJECT(), this->RenderWindow);
   return 1;
 }
 
@@ -195,68 +186,67 @@ int vtkGPUImageToImageFilter::RequestData(
   vtkImageData *outputImage = vtkImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
 
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
-  this->RenderWindow = inputTexture->GetContext();
-
-  int outputExtent[6];
-  outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outputExtent);
-  this->Execute(inputTexture, outputImage, outputExtent);
+  vtkGPUImageData* inputGPUImage = vtkGPUImageData::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
+  if (inputGPUImage)
+  {
+    this->RenderWindow = inputGPUImage->GetTextureObject()->GetContext();
+    int outputExtent[6];
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outputExtent);
+    outputImage->SetExtent(outputExtent);
+    this->Execute(inputGPUImage, outputImage);
+  }
 
   return 1;
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUImageToImageFilter::Execute(vtkTextureObject* inputTexture, vtkImageData* outputImage, int outputExtent[6])
+void vtkGPUImageToImageFilter::Execute(vtkGPUImageData* inputGPUImage, vtkImageData* outputImage)
 {
   if (!this->RenderWindow)
   {
     vtkErrorMacro("Render context not set");
   }
 
-  vtkIdType textureDataType = inputTexture->GetVTKDataType();
-  vtkSmartPointer<vtkPixelBufferObject> inputPixelBuffer = vtkSmartPointer<vtkPixelBufferObject>::Take(inputTexture->Download());
+  vtkIdType textureDataType = inputGPUImage->GetScalarType();
+  outputImage->AllocateScalars(textureDataType, inputGPUImage->GetTextureObject()->GetComponents()); // TODO: Move to texture
 
-  outputImage->SetExtent(outputExtent);
-  outputImage->AllocateScalars(textureDataType, 1);
-
-  void* imagePointer = outputImage->GetScalarPointer(outputExtent[0], outputExtent[2], outputExtent[4]);
-
-  switch (vtkTemplate2PackMacro(textureDataType, textureDataType))
+  vtkSmartPointer<vtkPixelBufferObject> inputPixelBuffer = vtkSmartPointer<vtkPixelBufferObject>::Take(inputGPUImage->GetTextureObject()->Download()); 
+  switch (textureDataType)
   {
-    vtkTemplate2Macro((this->ExecuteInternal<VTK_T1, VTK_T2>(inputTexture, inputPixelBuffer, outputImage, outputExtent)));
+    vtkTemplateMacro((this->ExecuteInternal<VTK_TT>(inputPixelBuffer, outputImage)));
   }
   inputPixelBuffer->UnmapPackedBuffer();
 }
 
 //----------------------------------------------------------------------------
-template<typename INPUT_TYPE, typename OUTPUT_TYPE>
-void vtkGPUImageToImageFilter::ExecuteInternal(vtkTextureObject* inputTexture, vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage, int outExtent[6])
+template<typename DATA_TYPE>
+void vtkGPUImageToImageFilter::ExecuteInternal(vtkPixelBufferObject* inputPixelBuffer, vtkImageData* outputImage)
 {
-  INPUT_TYPE* texturePointer = (INPUT_TYPE*)inputPixelBuffer->MapPackedBuffer();
-  int numberOfTextureComponents = inputPixelBuffer->GetComponents();
+  DATA_TYPE* texturePointer = (DATA_TYPE*)inputPixelBuffer->MapPackedBuffer();
 
-  OUTPUT_TYPE* imagePointer = (OUTPUT_TYPE*)outputImage->GetScalarPointer(outExtent[0], outExtent[2], outExtent[4]);
-  int numberOfImageComponents = outputImage->GetNumberOfScalarComponents();
+  int outExtent[6] = { 0, -1, 0, -1, 0, -1 };
+  outputImage->GetExtent(outExtent);
 
-  int outDimensions[3];
-  outDimensions[0] = outExtent[1] - outExtent[0] + 1;
-  outDimensions[1] = outExtent[3] - outExtent[2] + 1;
-  outDimensions[2] = outExtent[5] - outExtent[4] + 1;
+  int outDimensions[3] = { 0,0,0 };
+  outputImage->GetDimensions(outDimensions);
+
+  int numberOfComponents = outputImage->GetNumberOfScalarComponents();
+  DATA_TYPE* imagePointer = (DATA_TYPE*)outputImage->GetScalarPointer();
 
   vtkPixelExtent outputPixelExt(outExtent);
   for (int i = outExtent[4]; i <= outExtent[5]; i++)
     {
-    vtkPixelTransfer::Blit<INPUT_TYPE, OUTPUT_TYPE>(
+    vtkPixelTransfer::Blit<DATA_TYPE, DATA_TYPE>(
       outputPixelExt,
       outputPixelExt,
       outputPixelExt,
       outputPixelExt,
-      numberOfTextureComponents,
+      numberOfComponents,
       texturePointer,
-      numberOfImageComponents,
+      numberOfComponents,
       imagePointer);
-    texturePointer += numberOfTextureComponents * outDimensions[0] * outDimensions[1];
-    imagePointer += numberOfImageComponents * outDimensions[0] * outDimensions[1];
+    texturePointer += numberOfComponents * outDimensions[0] * outDimensions[1];
+    imagePointer   += numberOfComponents * outDimensions[0] * outDimensions[1];
     }
 }
 

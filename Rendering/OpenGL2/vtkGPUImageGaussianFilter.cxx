@@ -22,6 +22,7 @@ vtkStandardNewMacro(vtkGPUImageGaussianFilter);
 // ----------------------------------------------------------------------------
 vtkGPUImageGaussianFilter::vtkGPUImageGaussianFilter()
 {
+  // Fragment shader adapted from https://www.shadertoy.com/view/XdfGDH
   this->DefaultFragmentShaderSource = R"(
 //VTK::System::Dec
 varying vec2 tcoordVSOutput;

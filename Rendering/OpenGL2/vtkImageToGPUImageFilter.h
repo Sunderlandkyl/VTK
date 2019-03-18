@@ -34,7 +34,7 @@
 
 class vtkOpenGLRenderWindow;
 class vtkDataArray;
-class vtkTextureObject;
+class vtkGPUImageData;
 class vtkImageData;
 
 class VTKRENDERINGOPENGL2_EXPORT vtkImageToGPUImageFilter : public vtkAlgorithm
@@ -48,8 +48,8 @@ public:
   /**
   * Get the output data object for a port on this algorithm.
   */
-  vtkTextureObject* GetOutput();
-  vtkTextureObject* GetOutput(int);
+  vtkGPUImageData* GetOutput();
+  vtkGPUImageData* GetOutput(int);
   void SetOutput(vtkDataObject* d);
   //@}
 
@@ -129,7 +129,7 @@ public:
                           vtkInformationVector** inputVector,
                           vtkInformationVector* outputVector);
 
-  void Execute(vtkImageData* inputImage, vtkTextureObject* outputTexture);
+  void Execute(vtkImageData* inputImage, vtkGPUImageData* outputTexture);
 
   // see vtkAlgorithm for docs.
   int FillInputPortInformation(int, vtkInformation*) override;

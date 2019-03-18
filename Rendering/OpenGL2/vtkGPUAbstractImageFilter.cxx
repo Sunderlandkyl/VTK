@@ -12,38 +12,36 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-
 #include "vtkGPUAbstractImageFilter.h"
-#include "vtkObjectFactory.h"
-#include "vtkTextureObject.h"
-#include "vtkOpenGLRenderWindow.h"
-#include "vtkDataArray.h"
-#include "vtkImageData.h"
-#include "vtkNew.h"
-#include "vtkOpenGLFramebufferObject.h"
-#include "vtkOpenGLShaderCache.h"
-#include "vtkOpenGLState.h"
+
 #include "vtk_glew.h"
-#include "vtkPixelTransfer.h"
-#include "vtkPointData.h"
-#include "vtkPixelBufferObject.h"
-#include "vtkShaderProgram.h"
-#include "vtkOpenGLVertexArrayObject.h"
-#include <sstream>
-#include "vtkInformation.h"
+#include "vtkCommand.h"
 #include "vtkDemandDrivenPipeline.h"
+#include "vtkEventForwarderCommand.h"
+#include "vtkGPUImageData.h"
+#include "vtkInformation.h"
 #include "vtkInformationVector.h"
-#include "vtkErrorCode.h"
-#include "vtkInformationObjectBaseKey.h"
-#include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkObjectFactory.h"
+#include "vtkOpenGLFramebufferObject.h"
+#include "vtkOpenGLRenderWindow.h"
+#include "vtkOpenGLShaderCache.h"
 #include "vtkOpenGLShaderProperty.h"
+#include "vtkOpenGLState.h"
 #include "vtkOpenGLUniforms.h"
+#include "vtkOpenGLVertexArrayObject.h"
+#include "vtkPixelTransfer.h"
+#include "vtkShaderProgram.h"
+#include "vtkStreamingDemandDrivenPipeline.h"
+#include "vtkTextureObject.h"
+
+#include <sstream>
 
 vtkStandardNewMacro(vtkGPUAbstractImageFilter);
 
 // ----------------------------------------------------------------------------
 vtkGPUAbstractImageFilter::vtkGPUAbstractImageFilter()
 {
+  // Basic vertex shader
   this->DefaultVertexShaderSource = R"(
 //VTK::System::Dec
 attribute vec4 vertexMC;
@@ -56,17 +54,46 @@ void main()
 }
 )";
 
+  // Pass-through shader
+  this->DefaultFragmentShaderSource = R"(
+//VTK::System::Dec
+in vec2 tcoordVC;
+uniform sampler2D source;
+//VTK::Output::Dec
+void main(void)
+{
+  gl_FragData[0] = texture2D(source, tcoordVC);
+}
+)";
+
+  for (int i = 0; i < 3; ++i)
+  {
+    this->OutputExtent[i] = 0;
+    this->OutputExtent[i+1] = -1;
+  }
+
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
   this->OutputScalarType = VTK_FLOAT;
   this->RenderWindow = nullptr;
   this->OutputExtentSpecified = false;
+  this->NumberOfComponents = 1;
+
+  this->ShaderProperty->AddObserver(vtkCommand::ModifiedEvent, this, &vtkGPUAbstractImageFilter::ShaderPropertyModifed);
+  this->ShaderProperty->GetFragmentCustomUniforms()->AddObserver(vtkCommand::ModifiedEvent, this, &vtkGPUAbstractImageFilter::ShaderPropertyModifed);
+  this->ShaderProperty->GetVertexCustomUniforms()->AddObserver(vtkCommand::ModifiedEvent, this, &vtkGPUAbstractImageFilter::ShaderPropertyModifed);
 }
 
 // ----------------------------------------------------------------------------
 vtkGPUAbstractImageFilter::~vtkGPUAbstractImageFilter()
 {
   this->SetRenderWindow(nullptr);
+}
+
+//-----------------------------------------------------------------------------
+void vtkGPUAbstractImageFilter::ShaderPropertyModifed(vtkObject*, unsigned long, void*)
+{
+  this->Modified();
 }
 
 // ----------------------------------------------------------------------------
@@ -104,11 +131,11 @@ void vtkGPUAbstractImageFilter::PrintSelf(ostream& os, vtkIndent indent)
 }
 
 // ----------------------------------------------------------------------------
-int vtkGPUAbstractImageFilter::FillInputPortInformation(int port, vtkInformation* info)
+int vtkGPUAbstractImageFilter::FillInputPortInformation(int vtkNotUsed(port), vtkInformation* info)
 {
   info->Set(vtkAlgorithm::INPUT_IS_REPEATABLE(), 1);
   info->Set(vtkAlgorithm::INPUT_IS_OPTIONAL(), 1);
-  info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkTextureObject");
+  info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkGPUImageData");
   return 1;
 }
 
@@ -117,8 +144,8 @@ int vtkGPUAbstractImageFilter::FillOutputPortInformation(
   int vtkNotUsed(port), vtkInformation* info)
 {
   // now add our info
-  info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTextureObject");
-  info->Set(vtkTextureObject::CONTEXT_OBJECT(), this->RenderWindow);
+  info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkGPUImageData");
+  info->Set(vtkGPUImageData::CONTEXT_OBJECT(), this->RenderWindow);
   return 1;
 }
 
@@ -157,8 +184,8 @@ int vtkGPUAbstractImageFilter::ProcessRequest(vtkInformation* request,
 
 //----------------------------------------------------------------------------
 int vtkGPUAbstractImageFilter::RequestInformation(
-  vtkInformation* request,
-  vtkInformationVector** inputVector,
+  vtkInformation* vtkNotUsed(request),
+  vtkInformationVector** vtkNotUsed(inputVector),
   vtkInformationVector* outputVector)
 {
   vtkInformation* outInfo = outputVector->GetInformationObject(0);
@@ -175,10 +202,10 @@ int vtkGPUAbstractImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(requ
   vtkInformationVector* outputVector)
 {
   vtkInformation* outInfo = outputVector->GetInformationObject(0);
-  vtkTextureObject *output = vtkTextureObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+  vtkGPUImageData *output = vtkGPUImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
   if (!output)
   {
-    vtkTextureObject* newOutput = vtkTextureObject::New();
+    vtkGPUImageData* newOutput = vtkGPUImageData::New();
     outInfo->Set(vtkDataObject::DATA_OBJECT(), newOutput);
     newOutput->Delete();
   }
@@ -189,9 +216,8 @@ int vtkGPUAbstractImageFilter::RequestDataObject(vtkInformation* vtkNotUsed(requ
 int vtkGPUAbstractImageFilter::RequestUpdateExtent(
   vtkInformation* vtkNotUsed(request),
   vtkInformationVector** inputVector,
-  vtkInformationVector* outputVector)
+  vtkInformationVector* vtkNotUsed(outputVector))
 {
-  vtkInformation* outInfo = outputVector->GetInformationObject(0);
   for (int idx = 0; idx < this->GetNumberOfInputConnections(0); ++idx)
   {
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
@@ -215,24 +241,31 @@ int vtkGPUAbstractImageFilter::RequestData(
   }
 
   vtkInformation *outInfo = outputVector->GetInformationObject(outputPort);
-  vtkTextureObject *outputTexture = vtkTextureObject::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
+  vtkGPUImageData *outputGPUImage = vtkGPUImageData::SafeDownCast(outInfo->Get(vtkDataObject::DATA_OBJECT()));
 
-  std::vector<vtkTextureObject*> inputTextures;
+  std::vector<vtkGPUImageData*> inputGPUImages;
   for (int idx = 0; idx < this->GetNumberOfInputConnections(0); ++idx)
   {
     vtkInformation *inInfo = inputVector[0]->GetInformationObject(idx);
-    vtkTextureObject* inputTexture = vtkTextureObject::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
-    if (!inputTexture)
+    vtkGPUImageData* inputGPUImage = vtkGPUImageData::SafeDownCast(inInfo->Get(vtkDataObject::DATA_OBJECT()));
+    if (!inputGPUImage)
     {
-      vtkErrorMacro("Input texture " << idx << " is missing");
+      vtkErrorMacro("Input GPU image " << idx << " is missing");
+      return 0;
     }
-
-    inputTextures.push_back(inputTexture);
 
     if (!this->RenderWindow)
     {
-      this->RenderWindow = inputTexture->GetContext();
+      this->RenderWindow = inputGPUImage->GetContext();
     }
+
+    if (!inputGPUImage->GetContext() || inputGPUImage->GetContext() != this->RenderWindow)
+    {
+      vtkErrorMacro("Input texture has invalid or missing rendering context");
+      return 0;
+    }
+
+    inputGPUImages.push_back(inputGPUImage);
   }
 
   // TODO: extent calculation
@@ -241,16 +274,15 @@ int vtkGPUAbstractImageFilter::RequestData(
   {
     outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT(), outExtent);
   }
+  outputGPUImage->SetExtent(outExtent);
+  outputGPUImage->SetContext(this->RenderWindow);
+  outputGPUImage->AllocateScalars(this->OutputScalarType, this->NumberOfComponents); // TODO: Support multiple number of components
 
-  this->Execute(inputTextures, outputTexture, outExtent);
-
-  return 1;
+  return this->Execute(inputGPUImages, outputGPUImage);
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUAbstractImageFilter::Execute(std::vector<vtkTextureObject*> inputTextures,
-                                       vtkTextureObject* outputTexture,
-                                       int outputExtent[6])
+int vtkGPUAbstractImageFilter::Execute(std::vector<vtkGPUImageData*> inputGPUImages, vtkGPUImageData* outputGPUImage)
 {
   // make sure it is initialized
   if (!this->RenderWindow)
@@ -261,48 +293,39 @@ void vtkGPUAbstractImageFilter::Execute(std::vector<vtkTextureObject*> inputText
 
   if (this->ShaderRebuildNeeded())
   {
-    this->BuildShader(inputTextures, outputTexture);
+    this->BuildShader(inputGPUImages, outputGPUImage);
   }
 
   if (!this->ShaderProgram)
   {
-    //vtkErrorMacro("");
-    return;
+    vtkErrorMacro("Error building shader program");
+    return 0;
   }
 
   this->RenderWindow->GetShaderCache()->ReadyShaderProgram(this->ShaderProgram);
 
   // now create the framebuffer for the output
-  int outputDimensions[3];
-  outputDimensions[0] = outputExtent[1] - outputExtent[0] + 1;
-  outputDimensions[1] = outputExtent[3] - outputExtent[2] + 1;
-  outputDimensions[2] = outputExtent[5] - outputExtent[4] + 1;
+  int outputDimensions[3] = { 0, 0, 0 };
+  outputGPUImage->GetDimensions(outputDimensions);
 
-  outputTexture->SetContext(this->RenderWindow);
-  outputTexture->Create3D(outputDimensions[0], outputDimensions[1], outputDimensions[2], 4, this->OutputScalarType, false);
+  int outputExtent[6] = { 0, -1, 0, -1, 0, -1 };
+  outputGPUImage->GetExtent(outputExtent); 
 
   vtkNew<vtkOpenGLFramebufferObject> fbo;
   fbo->SetContext(this->RenderWindow);
   vtkOpenGLState *ostate = this->RenderWindow->GetState();
-  fbo->AddColorAttachment(fbo->GetDrawMode(), 0, outputTexture, 0);
-
-  // because the same FBO can be used in another pass but with several color
-  // buffers, force this pass to use 1, to avoid side effects from the
-  // render of the previous frame.
+  fbo->AddColorAttachment(fbo->GetDrawMode(), 0, outputGPUImage->GetTextureObject(), 0);
   fbo->ActivateDrawBuffer(0);
-
   fbo->StartNonOrtho(outputDimensions[0], outputDimensions[1]);
   ostate->vtkglViewport(0, 0, outputDimensions[0], outputDimensions[1]);
   ostate->vtkglScissor(0, 0, outputDimensions[0], outputDimensions[1]);
   ostate->vtkglDisable(GL_DEPTH_TEST);
 
-
   // Upload the value of user-defined uniforms in the program
-  auto vu = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetVertexCustomUniforms());
-  vu->SetUniforms(this->ShaderProgram);
-  auto fu = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetFragmentCustomUniforms());
-  fu->SetUniforms(this->ShaderProgram);
-
+  vtkOpenGLUniforms* vertexUniforms = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetVertexCustomUniforms());
+  vertexUniforms->SetUniforms(this->ShaderProgram);
+  vtkOpenGLUniforms* fragmentUniforms = static_cast<vtkOpenGLUniforms*>(this->ShaderProperty->GetFragmentCustomUniforms());
+  fragmentUniforms->SetUniforms(this->ShaderProgram);
   if (this->ShaderProgram != this->Quad.Program)
   {
     this->Quad.Program = this->ShaderProgram;
@@ -311,15 +334,16 @@ void vtkGPUAbstractImageFilter::Execute(std::vector<vtkTextureObject*> inputText
 
   ////////////////////////////////
   // Manage input textures
-  for (int textureIndex = 0; textureIndex < inputTextures.size(); ++textureIndex)
+  for (int textureIndex = 0; textureIndex < inputGPUImages.size(); ++textureIndex)
   {
-    vtkTextureObject* inputTexture = inputTextures[textureIndex];
+    vtkGPUImageData* inputGPUImageData = inputGPUImages[textureIndex];
+    vtkTextureObject* inputTexture = inputGPUImageData->GetTextureObject();
     inputTexture->Activate();
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   }
 
-  this->UpdateTextureUniforms(inputTextures, outputTexture);
+  this->UpdateTextureUniforms(inputGPUImages, outputGPUImage);
 
   ////////////////////////////////
   // Render
@@ -330,100 +354,100 @@ void vtkGPUAbstractImageFilter::Execute(std::vector<vtkTextureObject*> inputText
   {
     this->Quad.Program->SetUniformf("zPos", (i - outputExtent[4] + 0.5) / (outputDimensions[2]));
     fbo->RemoveColorAttachment(fbo->GetDrawMode(), 0);
-    fbo->AddColorAttachment(fbo->GetDrawMode(), 0, outputTexture, i);
+    fbo->AddColorAttachment(fbo->GetDrawMode(), 0, outputGPUImage->GetTextureObject(), i);
     fbo->RenderQuad(
       0, outputDimensions[0] - 1,
       0, outputDimensions[1] - 1,
       this->Quad.Program, this->Quad.VAO);
   }
+
+  return 1;
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUAbstractImageFilter::UpdateTextureUniforms(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::UpdateTextureUniforms(std::vector<vtkGPUImageData*> inputGPUImages, vtkGPUImageData* outputGPUImage)
 {
-  float shift = 0.0;
-  float scale = 1.0;
-  outputTexture->GetShiftAndScale(shift, scale);
+  float outputShift = 0.0;
+  float outputScale = 1.0;
+  outputGPUImage->GetTextureObject()->GetShiftAndScale(outputShift, outputScale);
 
   // Provide shift and scale to get the data backing into its original units
   std::stringstream outputShiftSS;
   outputShiftSS << "outputShift";
   std::string outputShiftString = outputShiftSS.str();
-  this->Quad.Program->SetUniformf(outputShiftString.c_str(), shift);
+  this->Quad.Program->SetUniformf(outputShiftString.c_str(), outputShift);
 
   std::stringstream outputScaleSS;
   outputScaleSS << "outputScale";
   std::string outputScaleString = outputScaleSS.str();
-  this->Quad.Program->SetUniformf(outputScaleString.c_str(), scale);
+  this->Quad.Program->SetUniformf(outputScaleString.c_str(), outputScale);
 
-  float outputTextureDimensions[3] = { 0,0,0 };
-  outputTextureDimensions[0] = outputTexture->GetWidth();
-  outputTextureDimensions[1] = outputTexture->GetHeight();
-  outputTextureDimensions[2] = outputTexture->GetDepth();
+  int outputDimensions[3] = { 0,0,0 };
+  outputGPUImage->GetDimensions(outputDimensions);
+  float outputDimensionsFloat[3] = { (float)outputDimensions[0], (float)outputDimensions[1], (float)outputDimensions[2] };
   std::stringstream outputSizeSS;
   outputSizeSS << "outputSize";
   std::string outputSizeString = outputSizeSS.str();
-  this->Quad.Program->SetUniform3f(outputSizeString.c_str(), outputTextureDimensions);
+  this->Quad.Program->SetUniform3f(outputSizeString.c_str(), outputDimensionsFloat);
 
 
   ////////////////////////////////
   // Manage input textures
-  for (int textureIndex = 0; textureIndex < inputTextures.size(); ++textureIndex)
+  for (int inputImageIndex = 0; inputImageIndex < inputGPUImages.size(); ++inputImageIndex)
   {
-    vtkTextureObject* inputTexture = inputTextures[textureIndex];
+    vtkGPUImageData* inputGPUImage = inputGPUImages[inputImageIndex];
     float shift = 0.0;
     float scale = 1.0;
-    inputTexture->GetShiftAndScale(shift, scale);
-    int inputTexId = inputTexture->GetTextureUnit();
+    inputGPUImage->GetTextureObject()->GetShiftAndScale(shift, scale);
+    int inputTexId = inputGPUImage->GetTextureObject()->GetTextureUnit();
 
     // Set Texture uniforms
     std::stringstream texIdSS;
-    texIdSS << "inputTex" << textureIndex;
+    texIdSS << "inputTex" << inputImageIndex;
     std::string texId = texIdSS.str();
     this->Quad.Program->SetUniformi(texId.c_str(), inputTexId);
 
     // Provide shift and scale to get the data backing into its original units
     std::stringstream inputShiftSS;
-    inputShiftSS << "inputShift" << textureIndex;
+    inputShiftSS << "inputShift" << inputImageIndex;
     std::string inputShiftString = inputShiftSS.str();
     this->Quad.Program->SetUniformf(inputShiftString.c_str(), shift);
 
     std::stringstream inputScaleSS;
-    inputScaleSS << "inputScale" << textureIndex;
+    inputScaleSS << "inputScale" << inputImageIndex;
     std::string inputScaleString = inputScaleSS.str();
     this->Quad.Program->SetUniformf(inputScaleString.c_str(), scale);
 
-    float inputTextureDimensions[3] = { 0,0,0 };
-    inputTextureDimensions[0] = inputTexture->GetWidth();
-    inputTextureDimensions[1] = inputTexture->GetHeight();
-    inputTextureDimensions[2] = inputTexture->GetDepth();
+    int inputTextureDimensions[3] = { 0,0,0 };
+    inputGPUImage->GetDimensions(inputTextureDimensions);
+    float inputTextureDimensionsFloat[3] = { (float)inputTextureDimensions[0], (float)inputTextureDimensions[1], (float)inputTextureDimensions[2]};
     std::stringstream inputSizeSS;
-    inputSizeSS << "inputSize" << textureIndex;
+    inputSizeSS << "inputSize" << inputImageIndex;
     std::string inputSizeString = inputSizeSS.str();
-    this->Quad.Program->SetUniform3f(inputScaleString.c_str(), inputTextureDimensions);
+    this->Quad.Program->SetUniform3f(inputScaleString.c_str(), inputTextureDimensionsFloat);
   }
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkGPUAbstractImageFilter::GetOutput()
+vtkGPUImageData* vtkGPUAbstractImageFilter::GetOutput()
 {
   return this->GetOutput(0);
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkGPUAbstractImageFilter::GetOutput(int port)
+vtkGPUImageData* vtkGPUAbstractImageFilter::GetOutput(int port)
 {
-  return vtkTextureObject::SafeDownCast(this->GetOutputDataObject(port));
+  return vtkGPUImageData::SafeDownCast(this->GetOutputDataObject(port));
 }
 
 //----------------------------------------------------------------------------
-vtkTextureObject* vtkGPUAbstractImageFilter::GetInput(int port)
+vtkGPUImageData* vtkGPUAbstractImageFilter::GetInput(int port)
 {
-  return vtkTextureObject::SafeDownCast(this->GetInputDataObject(port, 0));
+  return vtkGPUImageData::SafeDownCast(this->GetInputDataObject(port, 0));
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUAbstractImageFilter::AddInputData(vtkTextureObject* input)
+void vtkGPUAbstractImageFilter::AddInputData(vtkGPUImageData* input)
 {
   this->AddInputDataInternal(0, input);
 }
@@ -439,7 +463,7 @@ bool vtkGPUAbstractImageFilter::ShaderRebuildNeeded()
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUAbstractImageFilter::BuildShader(std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::BuildShader(std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture)
 {
 
   std::map<vtkShader::Type, vtkShader*> shaders;
@@ -548,7 +572,7 @@ void vtkGPUAbstractImageFilter::ReplaceShaderCustomUniforms(
 }
 
 //----------------------------------------------------------------------------
-void vtkGPUAbstractImageFilter::ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkTextureObject*> inputTextures, vtkTextureObject* outputTexture)
+void vtkGPUAbstractImageFilter::ReplaceShaderTextureInput(std::map<vtkShader::Type, vtkShader*>& shaders, std::vector<vtkGPUImageData*> inputTextures, vtkGPUImageData* outputTexture)
 {
   std::stringstream textureUniformReplacementSS;
 

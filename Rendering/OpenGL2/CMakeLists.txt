@@ -22,8 +22,14 @@ set(Module_SRCS
   vtkFramebufferPass.cxx
   vtkGaussianBlurPass.cxx
   vtkGenericOpenGLRenderWindow.cxx
+  vtkGPUAbstractImageFilter.cxx
+  vtkGPUImageGaussianFilter.cxx
+  vtkGPUImageData.cxx
+  vtkGPUImageToImageFilter.cxx
+  vtkGPUSimpleImageFilter.cxx
   vtkHiddenLineRemovalPass.cxx
   vtkImageProcessingPass.cxx
+  vtkImageToGPUImageFilter.cxx
   vtkLightingMapPass.cxx
   vtkLightsPass.cxx
   vtkOpaquePass.cxx
@@ -39,11 +45,6 @@ set(Module_SRCS
   vtkOpenGLHardwareSelector.cxx
   vtkOpenGLHelper.cxx
   vtkOpenGLImageAlgorithmHelper.cxx
-  vtkGPUAbstractImageFilter.cxx
-  vtkGPUImageGaussianFilter.cxx
-  vtkGPUSimpleImageFilter.cxx
-  vtkGPUImageToImageFilter.cxx
-  vtkImageToGPUImageFilter.cxx
   vtkOpenGLImageMapper.cxx
   vtkOpenGLImageSliceMapper.cxx
   vtkOpenGLIndexBufferObject.cxx
