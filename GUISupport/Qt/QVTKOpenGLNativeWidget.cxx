@@ -185,6 +185,13 @@ QVTKOpenGLNativeWidget::QVTKOpenGLNativeWidget(QWidget* parentWdg, Qt::WindowFla
 
   this->setMouseTracking(true);
 
+  // enable detection of Qt gesture events
+  this->grabGesture(Qt::PinchGesture);
+  this->grabGesture(Qt::PanGesture);
+  this->grabGesture(Qt::TapGesture);
+  this->grabGesture(Qt::TapAndHoldGesture);
+  this->grabGesture(Qt::SwipeGesture);
+
   // QOpenGLWidget::resized() is triggered when the default FBO in QOpenGLWidget is recreated.
   // We use the same signal to recreate our FBO.
   this->connect(this, SIGNAL(resized()), SLOT(recreateFBO()));

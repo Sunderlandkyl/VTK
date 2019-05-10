@@ -117,6 +117,7 @@
 #define VTKIS_EXIT                   15 // call exit callback
 #define VTKIS_TOGGLE_DRAW_CONTROLS   16 // draw device controls helpers
 #define VTKIS_MENU                   17 // invoke an application menu
+#define VTKIS_GESTURE          18
 
 #define VTKIS_ANIM_OFF 0
 #define VTKIS_ANIM_ON  1
@@ -297,9 +298,15 @@ public:
   /**
    * gesture based events
    */
+  virtual void OnStartPinch() {}
   virtual void OnPinch() {}
+  virtual void OnEndPinch() {}
+  virtual void OnStartRotate() {}
   virtual void OnRotate() {}
+  virtual void OnEndRotate() {}
+  virtual void OnStartPan() {}
   virtual void OnPan() {}
+  virtual void OnEndPan() {}
   virtual void OnTap() {}
   virtual void OnLongTap() {}
   virtual void OnSwipe() {}
@@ -334,6 +341,8 @@ public:
   virtual void EndTimer();
   virtual void StartTwoPointer();
   virtual void EndTwoPointer();
+  virtual void StartGesture();
+  virtual void EndGesture();
   //@}
 
   //@{
@@ -397,6 +406,7 @@ protected:
   // Keep track of current state
   int State;
   int AnimState;
+  int GestureCount;
 
   // Should observers be handled here, should we fire timers
   vtkTypeBool HandleObservers;

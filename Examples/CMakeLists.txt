@@ -52,9 +52,9 @@ else()
     # If so we cannot create the target "vtkLocalExample" because
     # an imported target of the same name already exists in the
     # VTK build.
-    if(NOT vtkLocalExample_LOADED)
-      add_subdirectory(Build/vtkLocal)
-    endif()
+    #if(NOT vtkLocalExample_LOADED)
+    #  add_subdirectory(Build/vtkLocal)
+    #endif()
     if(TARGET vtkGUISupportQt AND vtkTestingCore_LOADED)
       add_subdirectory(GUI/Qt)
     endif()

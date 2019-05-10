@@ -18,9 +18,11 @@
 #include "vtkCallbackCommand.h"
 #include "vtkMath.h"
 #include "vtkObjectFactory.h"
+#include "vtkPlane.h"
 #include "vtkRenderWindow.h"
 #include "vtkRenderWindowInteractor.h"
 #include "vtkRenderer.h"
+#include "vtkTransform.h"
 
 vtkStandardNewMacro(vtkInteractorStyleMultiTouchCamera);
 
@@ -31,8 +33,19 @@ vtkInteractorStyleMultiTouchCamera::vtkInteractorStyleMultiTouchCamera() = defau
 vtkInteractorStyleMultiTouchCamera::~vtkInteractorStyleMultiTouchCamera() = default;
 
 //----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnStartRotate()
+{
+  this->StartGesture();
+}
+
+//----------------------------------------------------------------------------
 void vtkInteractorStyleMultiTouchCamera::OnRotate()
 {
+  if (this->State != VTKIS_GESTURE)
+  {
+    return;
+  }
+
   int pointer = this->Interactor->GetPointerIndex();
 
   this->FindPokedRenderer(this->Interactor->GetEventPositions(pointer)[0],
@@ -44,17 +57,57 @@ void vtkInteractorStyleMultiTouchCamera::OnRotate()
   }
 
   vtkCamera *camera = this->CurrentRenderer->GetActiveCamera();
+
+  int* pinchPostionDisplay = this->Interactor->GetEventPositions(pointer);
+
+
+  double oldWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], 0, oldWorldPosition);
+
   camera->Roll( this->Interactor->GetRotation() - this->Interactor->GetLastRotation() );
+
+  double newWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], 0, newWorldPosition);
+
+  vtkNew<vtkPlane> plane;
+  plane->SetOrigin(camera->GetFocalPoint());
+  plane->SetNormal(camera->GetViewPlaneNormal());
+  plane->ProjectPoint(newWorldPosition, newWorldPosition);
+  plane->ProjectPoint(oldWorldPosition, oldWorldPosition);
+
+  double deltaWorld[3] = { 0,0,0 };
+  vtkMath::Subtract(oldWorldPosition, newWorldPosition, deltaWorld);
+
+  vtkNew<vtkTransform> deltaWorldTransform;
+  deltaWorldTransform->Identity();
+  deltaWorldTransform->Translate(deltaWorld);
+  camera->ApplyTransform(deltaWorldTransform);
 
   camera->OrthogonalizeViewUp();
 
   this->Interactor->Render();
 }
 
+//----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnEndRotate()
+{
+  this->EndGesture();
+}
+
+//----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnStartPinch()
+{
+  this->StartGesture();
+}
 
 //----------------------------------------------------------------------------
 void vtkInteractorStyleMultiTouchCamera::OnPinch()
 {
+  if (this->State != VTKIS_GESTURE)
+  {
+    return;
+  }
+
   int pointer = this->Interactor->GetPointerIndex();
 
   this->FindPokedRenderer(this->Interactor->GetEventPositions(pointer)[0],
@@ -66,6 +119,13 @@ void vtkInteractorStyleMultiTouchCamera::OnPinch()
   }
 
   vtkCamera *camera = this->CurrentRenderer->GetActiveCamera();
+
+  int* pinchPostionDisplay = this->Interactor->GetEventPositions(pointer);
+
+  // Remember the position of the center of the pinch in world coordinates
+  // This position should stay in the same location on the screen after the dolly has been performed
+  double oldWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], pinchPostionDisplay[2], oldWorldPosition);
 
   double dyf = this->Interactor->GetScale()/this->Interactor->GetLastScale();
   if (camera->GetParallelProjection())
@@ -81,6 +141,26 @@ void vtkInteractorStyleMultiTouchCamera::OnPinch()
     }
   }
 
+  // New position at the center of the pinch gesture
+  double newWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], pinchPostionDisplay[2], newWorldPosition);
+
+  vtkNew<vtkPlane> plane;
+  plane->SetOrigin(camera->GetFocalPoint());
+  plane->SetNormal(camera->GetViewPlaneNormal());
+  plane->ProjectPoint(newWorldPosition, newWorldPosition);
+  plane->ProjectPoint(oldWorldPosition, oldWorldPosition);
+
+  // Determine how far the pinch center has been shifted from it's original location
+  double deltaWorld[4] = { 0,0,0 };
+  vtkMath::Subtract(oldWorldPosition, newWorldPosition, deltaWorld);
+
+  // Translate the camera to compensate for the shift of the pinch center
+  vtkNew<vtkTransform> deltaWorldTransform;
+  deltaWorldTransform->Identity();
+  deltaWorldTransform->Translate(deltaWorld);
+  camera->ApplyTransform(deltaWorldTransform);
+
   if (this->Interactor->GetLightFollowCamera())
   {
     this->CurrentRenderer->UpdateLightsGeometryToFollowCamera();
@@ -88,10 +168,26 @@ void vtkInteractorStyleMultiTouchCamera::OnPinch()
   this->Interactor->Render();
 }
 
+//----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnEndPinch()
+{
+  this->EndGesture();
+}
+
+//----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnStartPan()
+{
+  this->StartGesture();
+}
 
 //----------------------------------------------------------------------------
 void vtkInteractorStyleMultiTouchCamera::OnPan()
 {
+  if (this->State != VTKIS_GESTURE)
+  {
+    return;
+  }
+
   int pointer = this->Interactor->GetPointerIndex();
 
   this->FindPokedRenderer(this->Interactor->GetEventPositions(pointer)[0],
@@ -152,6 +248,12 @@ void vtkInteractorStyleMultiTouchCamera::OnPan()
   camera->OrthogonalizeViewUp();
 
   rwi->Render();
+}
+
+//----------------------------------------------------------------------------
+void vtkInteractorStyleMultiTouchCamera::OnEndPan()
+{
+  this->EndGesture();
 }
 
 //----------------------------------------------------------------------------
