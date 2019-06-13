@@ -42,6 +42,7 @@ else()
       add_subdirectory(Tutorial/Step5/Cxx)
       add_subdirectory(Tutorial/Step6/Cxx)
       add_subdirectory(VolumeRendering/Cxx)
+      add_subdirectory(ShaderAlgorithm/Cxx)
     endif ()
 
     if(vtkParallelMPI_LOADED AND vtkRenderingParallel_LOADED)
