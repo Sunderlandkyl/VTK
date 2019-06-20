@@ -39,6 +39,7 @@
 #include <QSignalMapper>
 #include <QTimer>
 #include <QGestureEvent>
+#include <QWidget>
 
 #include "vtkCommand.h"
 
@@ -368,11 +369,37 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
 
   if (e->type() == QEvent::Gesture)
   {
+    // Store event information to restore after gesture is completed
+    int eventPosition[2];
+    iren->GetEventPosition(eventPosition);
+    int lastEventPosition[2];
+    iren->GetLastEventPosition(lastEventPosition);
+
     QGestureEvent* e2 = static_cast<QGestureEvent*>(e);
     if (QPinchGesture *pinch = static_cast<QPinchGesture*>(e2->gesture(Qt::PinchGesture)))
     {
-      QPointF position = pinch->centerPoint();
-      iren->SetEventPosition(position.x(), position.y());
+      e2->accept(Qt::PinchGesture);
+
+      QPointF position = pinch->centerPoint().toPoint();
+
+      // When using MacOS trackpad, the center of the pinch event is already reported in widget coordinates.
+      // For other platforms, the coordinates need to be converted from global to local.
+#ifndef Q_OS_OSX
+      QWidget *widget = qobject_cast<QWidget *>(this->parent());
+      if (widget)
+      {
+        position = widget->mapFromGlobal(pinch->centerPoint().toPoint());
+      }
+      else
+      {
+        // Pinch gesture position is in global coordinates, but could not find a widget to convert to local coordinates
+        // QVTKInteractorAdapter parent is not set in QVTKRenderWindowAdapter. Gesture coordinate mapping may be incorrect.
+        qWarning("Could not find parent widget. Gesture coordinate mapping may be incorrect");
+      }
+#endif
+      iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+                                     static_cast<int>(position.y() * this->DevicePixelRatio + DevicePixelRatioTolerance));
+      iren->SetScale(1.0);
       iren->SetScale(pinch->scaleFactor());
       switch (pinch->state())
       {
@@ -386,8 +413,8 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       default:
         iren->InvokeEvent(vtkCommand::PinchEvent, e2);
       }
-
-      iren->SetRotation(pinch->rotationAngle());
+      iren->SetRotation(-1.0*pinch->lastRotationAngle());
+      iren->SetRotation(-1.0*pinch->rotationAngle());
       switch (pinch->state())
       {
       case Qt::GestureStarted:
@@ -400,12 +427,40 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       default:
         iren->InvokeEvent(vtkCommand::RotateEvent, e2);
       }
-      return true;
+      // Based on the center point, the pinch gesture contains information about the pan gesture as well.
+      QPointF centerPoint = pinch->centerPoint();
+      QPointF lastCenterPoint = pinch->lastCenterPoint();
+
+      // On MacOS, the lastCenterPoint is always set to (0,0,0) instead of the actual last center point.
+      // Cannot perform pan using pinch gesture on trackpad anyways, so set the lastCenterPoint to be the
+      // same as the current centerPoint.
+#ifdef Q_OS_OSX
+      lastCenterPoint = centerPoint;
+#endif
+
+      double translation[2] = { (centerPoint.x() - lastCenterPoint.x()) * this->DevicePixelRatio + this->DevicePixelRatioTolerance,
+                               -(centerPoint.y() - lastCenterPoint.y()) * this->DevicePixelRatio + this->DevicePixelRatioTolerance };
+      iren->SetTranslation(translation);
+      switch (pinch->state())
+      {
+      case Qt::GestureStarted:
+        iren->InvokeEvent(vtkCommand::StartPanEvent, e2);
+        break;
+      case Qt::GestureFinished:
+      case Qt::GestureCanceled:
+        iren->InvokeEvent(vtkCommand::EndPanEvent, e2);
+        break;
+      default:
+        iren->InvokeEvent(vtkCommand::PanEvent, e2);
+      }
     }
     else if (QPanGesture *pan = static_cast<QPanGesture*>(e2->gesture(Qt::PanGesture)))
     {
-      QPointF offset = pan->offset();
-      double translation[2] = { offset.x(), offset.y() };
+      e2->accept(Qt::PanGesture);
+
+      QPointF delta = pan->delta();
+      double translation[2] = { (delta.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
+                               -(delta.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance) };
       iren->SetTranslation(translation);
       switch (pan->state())
       {
@@ -419,27 +474,56 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       default:
         iren->InvokeEvent(vtkCommand::PanEvent, e2);
       }
-      return true;
     }
-    else if (QTapGesture *tap = static_cast<QTapGesture*>(e2->gesture(Qt::TapGesture)))
+
+    if (QTapGesture *tap = static_cast<QTapGesture*>(e2->gesture(Qt::TapGesture)))
     {
-      QPointF position = tap->position();
-      iren->SetEventPosition(position.x(), position.y());
-      iren->InvokeEvent(vtkCommand::TapEvent, e2);
-      return true;
+      e2->accept(Qt::TapGesture);
+
+      QPointF position = tap->position().toPoint();
+      iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
+                                     static_cast<int>(position.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance));
+      if (tap->state() == Qt::GestureStarted)
+      {
+        iren->InvokeEvent(vtkCommand::TapEvent, e2);
+      }
     }
-    else if (QTapAndHoldGesture *tapAndHold= static_cast<QTapAndHoldGesture*>(e2->gesture(Qt::TapAndHoldGesture)))
+
+    if (QTapAndHoldGesture *tapAndHold= static_cast<QTapAndHoldGesture*>(e2->gesture(Qt::TapAndHoldGesture)))
     {
-      QPointF position = tapAndHold->position();
-      iren->SetEventPosition(position.x(), position.y());
-      iren->InvokeEvent(vtkCommand::LongTapEvent, e2);
-      return true;
+      e2->accept(Qt::TapAndHoldGesture);
+
+      QPointF position = tapAndHold->position().toPoint();
+      QWidget *widget = qobject_cast<QWidget *>(this->parent());
+      if (widget)
+      {
+        position = widget->mapFromGlobal(tapAndHold->position().toPoint());
+      }
+      else
+      {
+        // TapAndHold gesture position is in global coordinates, but could not find a widget to convert to local coordinates
+        // QVTKInteractorAdapter parent is not set in QVTKRenderWindowAdapter. Gesture coordinate mapping may be incorrect.
+        qWarning("Could not find parent widget. Gesture coordinate mapping may be incorrect");
+      }
+      iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
+                                     static_cast<int>(position.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance));
+      if (tapAndHold->state() == Qt::GestureStarted)
+      {
+        iren->InvokeEvent(vtkCommand::LongTapEvent, e2);
+      }
     }
-    else if (e2->gesture(Qt::SwipeGesture))
+
+    if (QSwipeGesture *swipe = static_cast<QSwipeGesture*>(e2->gesture(Qt::SwipeGesture)))
     {
+      e2->accept(Qt::SwipeGesture);
+      iren->SetRotation(swipe->swipeAngle());
       iren->InvokeEvent(vtkCommand::SwipeEvent, e2);
-      return true;
     }
+
+    iren->SetEventPosition(eventPosition);
+    iren->SetLastEventPosition(lastEventPosition);
+
+    return true;
   }
   return false;
 }
