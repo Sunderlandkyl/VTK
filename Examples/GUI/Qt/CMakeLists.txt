@@ -6,6 +6,7 @@ endif()
 add_subdirectory(FourPaneViewer)
 add_subdirectory(ImageViewer)
 add_subdirectory(SimpleView)
+add_subdirectory(PenPaintViewer)
 
 if(TARGET vtkGUISupportQtOpenGL)
   find_package(Qt5 COMPONENTS WebKitWidgets QUIET)
