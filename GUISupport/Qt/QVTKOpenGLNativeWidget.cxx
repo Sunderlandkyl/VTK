@@ -191,6 +191,7 @@ QVTKOpenGLNativeWidget::QVTKOpenGLNativeWidget(QWidget* parentWdg, Qt::WindowFla
   this->grabGesture(Qt::TapGesture);
   this->grabGesture(Qt::TapAndHoldGesture);
   this->grabGesture(Qt::SwipeGesture);
+  this->setTabletTracking(true);
 
   // QOpenGLWidget::resized() is triggered when the default FBO in QOpenGLWidget is recreated.
   // We use the same signal to recreate our FBO.

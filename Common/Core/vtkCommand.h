@@ -359,7 +359,13 @@
     _vtk_add_event(FifthButtonReleaseEvent)\
     _vtk_add_event(Move3DEvent)\
     _vtk_add_event(Button3DEvent)\
-    _vtk_add_event(TextEvent)
+    _vtk_add_event(TextEvent)\
+    _vtk_add_event(TabletEnterProximityEvent)\
+    _vtk_add_event(TabletLeaveProximityEvent)\
+    _vtk_add_event(TabletMoveEvent)\
+    _vtk_add_event(TabletPressEvent)\
+    _vtk_add_event(TabletReleaseEvent)\
+    _vtk_add_event(TabletTrackingChangeEvent)
 
 #define vtkEventDeclarationMacro(_enum_name)\
   enum _enum_name{\

@@ -41,7 +41,6 @@ vtkInteractorStyle::vtkInteractorStyle()
 {
   this->State               = VTKIS_NONE;
   this->AnimState           = VTKIS_ANIM_OFF;
-  this->GestureCount        = 0;
 
   this->HandleObservers     = 1;
   this->UseTimers           = 0;
@@ -484,6 +483,9 @@ void vtkInteractorStyle::StartState(int newstate)
     if ( this->UseTimers &&
          !(this->TimerId=rwi->CreateRepeatingTimer(this->TimerDuration)) )
     {
+      // FIXME: This comment doesn't match the logic of the code. There is one
+      // test failing with it like it is, but more failing if the comparison is
+      // inverted.
       // vtkTestingInteractor cannot create timers
       if (std::string(rwi->GetClassName()) != "vtkTestingInteractor")
       {
@@ -504,6 +506,9 @@ void vtkInteractorStyle::StopState()
     vtkRenderWindow *renwin = rwi->GetRenderWindow();
     renwin->SetDesiredUpdateRate(rwi->GetStillUpdateRate());
     if (this->UseTimers &&
+        // FIXME: This comment doesn't match the logic of the code. There is
+        // one test failing with it like it is, but more failing if the
+        // comparison is inverted.
         // vtkTestingInteractor cannot create timers
         std::string(rwi->GetClassName()) != "vtkTestingInteractor" &&
         !rwi->DestroyTimer(this->TimerId))
@@ -715,7 +720,6 @@ void vtkInteractorStyle::StartGesture()
   {
     return;
   }
-  this->GestureCount++;
   this->StartState(VTKIS_GESTURE);
 }
 
@@ -726,12 +730,7 @@ void vtkInteractorStyle::EndGesture()
   {
     return;
   }
-  this->GestureCount--;
-
-  if (this->GestureCount <= 0)
-  {
-    this->StopState();
-  }
+  this->StopState();
 }
 
 //----------------------------------------------------------------------------

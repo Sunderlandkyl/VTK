@@ -38,11 +38,12 @@
 #include <QEvent>
 #include <QSignalMapper>
 #include <QTimer>
-#include <QResizeEvent>
 #include <QGestureEvent>
 #include <QWidget>
-
+#include <QDebug>
 #include "vtkCommand.h"
+#include <QTabletEvent>
+#include <sstream>
 
 // function to get VTK keysyms from ascii characters
 static const char* ascii_to_key_sym(int);
@@ -91,16 +92,6 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
 
   const QEvent::Type t = e->type();
 
-  if(t == QEvent::Resize)
-  {
-    QResizeEvent* e2 = static_cast<QResizeEvent*>(e);
-    QSize size = e2->size();
-    iren->SetSize(static_cast<int>(size.width() * this->DevicePixelRatio + DevicePixelRatioTolerance),
-                  static_cast<int>(size.height() * this->DevicePixelRatio + DevicePixelRatioTolerance));
-    iren->InvokeEvent(vtkCommand::ConfigureEvent, e2);
-    return true;
-  }
-
   if(t == QEvent::FocusIn)
   {
     // For 3DConnexion devices:
@@ -127,6 +118,89 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
   if(!iren->GetEnabled())
     return false;
 
+  bool legacyTabletMode = false; // TODO: add as property somewhere
+  if (!legacyTabletMode && (
+    t == QEvent::TabletEnterProximity ||
+    t == QEvent::TabletLeaveProximity ||
+    t == QEvent::TabletMove ||
+    t == QEvent::TabletPress ||
+    t == QEvent::TabletRelease ||
+    t == QEvent::TabletTrackingChange))
+  {
+    QTabletEvent* tabletEvent = dynamic_cast<QTabletEvent*>(e);
+    iren->SetEventInformationFlipY(static_cast<int>(tabletEvent->pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      static_cast<int>(tabletEvent->pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      (tabletEvent->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
+      (tabletEvent->modifiers() & Qt::ShiftModifier) > 0 ? 1 : 0,
+      0, 0, nullptr, 0);
+    switch (tabletEvent->type())
+    {
+    case QEvent::TabletEnterProximity:
+      iren->InvokeEvent(vtkCommand::TabletEnterProximityEvent, tabletEvent);
+      break;
+    case QEvent::TabletLeaveProximity:
+      iren->InvokeEvent(vtkCommand::TabletLeaveProximityEvent, tabletEvent);
+      break;
+    case QEvent::TabletMove:
+      iren->InvokeEvent(vtkCommand::TabletMoveEvent, tabletEvent);
+      break;
+    case QEvent::TabletPress:
+      iren->InvokeEvent(vtkCommand::TabletPressEvent, tabletEvent);
+      break;
+    case QEvent::TabletRelease:
+      iren->InvokeEvent(vtkCommand::TabletReleaseEvent, tabletEvent);
+      break;
+    case QEvent::TabletTrackingChange:
+      iren->InvokeEvent(vtkCommand::TabletTrackingChangeEvent, tabletEvent);
+      break;
+    }
+    tabletEvent->accept();
+  }
+
+  if (t == QEvent::TouchBegin ||
+    t == QEvent::TouchUpdate ||
+    t == QEvent::TouchEnd)
+  {
+    QTouchEvent* e2 = dynamic_cast<QTouchEvent*>(e);
+    foreach(const QTouchEvent::TouchPoint & point, e2->touchPoints())
+    {
+      if (point.id() >= VTKI_MAX_POINTERS)
+      {
+        break;
+      }
+
+      // give interactor the event information
+      iren->SetEventInformationFlipY(static_cast<int>(point.pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+        static_cast<int>(point.pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+        (e2->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
+        (e2->modifiers() & Qt::ShiftModifier) > 0 ? 1 : 0,
+        0, 0, nullptr, point.id());
+    }
+    foreach(const QTouchEvent::TouchPoint & point, e2->touchPoints())
+    {
+      if (point.id() >= VTKI_MAX_POINTERS)
+      {
+        break;
+      }
+
+      iren->SetPointerIndex(point.id());
+      if (point.state() & Qt::TouchPointReleased)
+      {
+        iren->InvokeEvent(vtkCommand::LeftButtonReleaseEvent, nullptr);
+      }
+      if (point.state() & Qt::TouchPointPressed)
+      {
+        iren->InvokeEvent(vtkCommand::LeftButtonPressEvent, nullptr);
+      }
+      if (point.state() & Qt::TouchPointMoved)
+      {
+        iren->InvokeEvent(vtkCommand::MouseMoveEvent, nullptr);
+      }
+    }
+    e2->accept();
+    return true;
+  }
+
   if(t == QEvent::MouseButtonPress ||
      t == QEvent::MouseButtonRelease ||
      t == QEvent::MouseButtonDblClick ||
@@ -147,7 +221,7 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
     {
       iren->InvokeEvent(vtkCommand::MouseMoveEvent, e2);
     }
-    else if(t == QEvent::MouseButtonPress)
+    else if(t == QEvent::MouseButtonPress || t == QEvent::MouseButtonDblClick)
     {
       switch(e2->button())
       {
@@ -161,26 +235,6 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
 
         case Qt::RightButton:
           iren->InvokeEvent(vtkCommand::RightButtonPressEvent, e2);
-          break;
-
-        default:
-          break;
-      }
-    }
-    else if(t == QEvent::MouseButtonDblClick)
-    {
-      switch(e2->button())
-      {
-        case Qt::LeftButton:
-          iren->InvokeEvent(vtkCommand::LeftButtonDoubleClickEvent, e2);
-          break;
-
-        case Qt::MidButton:
-          iren->InvokeEvent(vtkCommand::MiddleButtonDoubleClickEvent, e2);
-          break;
-
-        case Qt::RightButton:
-          iren->InvokeEvent(vtkCommand::RightButtonDoubleClickEvent, e2);
           break;
 
         default:
@@ -207,47 +261,6 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
           break;
       }
     }
-    return true;
-  }
-  if (t == QEvent::TouchBegin ||
-      t == QEvent::TouchUpdate ||
-      t == QEvent::TouchEnd)
-  {
-    QTouchEvent* e2 = dynamic_cast<QTouchEvent*>(e);
-    foreach (const QTouchEvent::TouchPoint& point, e2->touchPoints())
-    {
-      if (point.id() >= VTKI_MAX_POINTERS)
-      {
-        break;
-      }
-      // give interactor the event information
-      iren->SetEventInformationFlipY(static_cast<int>(point.pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
-                                     static_cast<int>(point.pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
-                                      (e2->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
-                                      (e2->modifiers() & Qt::ShiftModifier ) > 0 ? 1 : 0,
-                                      0,0,nullptr, point.id());
-    }
-    foreach (const QTouchEvent::TouchPoint& point, e2->touchPoints())
-    {
-      if (point.id() >= VTKI_MAX_POINTERS)
-      {
-        break;
-      }
-      iren->SetPointerIndex(point.id());
-      if (point.state() & Qt::TouchPointReleased)
-      {
-        iren->InvokeEvent(vtkCommand::LeftButtonReleaseEvent,nullptr);
-      }
-      if (point.state() & Qt::TouchPointPressed)
-      {
-        iren->InvokeEvent(vtkCommand::LeftButtonPressEvent,nullptr);
-      }
-      if (point.state() & Qt::TouchPointMoved)
-      {
-        iren->InvokeEvent(vtkCommand::MouseMoveEvent, nullptr);
-      }
-    }
-    e2->accept();
     return true;
   }
 
@@ -277,6 +290,8 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       keysym = qt_key_to_key_sym(static_cast<Qt::Key>(e2->key()),
                                  e2->modifiers());
     }
+
+    qCritical() << e2->key();
 
     if(!keysym)
     {
@@ -407,17 +422,32 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
     iren->GetLastEventPosition(lastEventPosition);
 
     QGestureEvent* e2 = static_cast<QGestureEvent*>(e);
-    if (QPinchGesture *pinch = static_cast<QPinchGesture*>(e2->gesture(Qt::PinchGesture)))
+    if (QSwipeGesture * swipe = static_cast<QSwipeGesture*>(e2->gesture(Qt::SwipeGesture)))
+    {
+      if (swipe->state() == Qt::GestureUpdated)
+      {
+        e2->accept(Qt::SwipeGesture);
+        iren->SetRotation(swipe->swipeAngle());
+        iren->InvokeEvent(vtkCommand::SwipeEvent, e2);
+      }
+    }
+    else if (QPinchGesture *pinch = static_cast<QPinchGesture*>(e2->gesture(Qt::PinchGesture)))
     {
       e2->accept(Qt::PinchGesture);
 
-      QPoint position = pinch->centerPoint().toPoint();
+      QPointF position = pinch->centerPoint().toPoint();
 #ifndef Q_OS_OSX
       // When using MacOS touchpad, the center of the pinch event is already reported in widget coordinates
       QWidget *widget = qobject_cast<QWidget *>(this->parent());
       if (widget)
       {
-        position = widget->mapFromGlobal(position);
+        position = widget->mapFromGlobal(pinch->centerPoint().toPoint());
+      }
+      else
+      {
+        // Pinch gesture position is in global coordinates, but could not find a widget to convert to local coordinates
+        // QVTKInteractorAdapter parent is not set in QVTKRenderWindowAdapter. Gesture coordinate mapping may be incorrect.
+        qWarning("Could not find parent widget. Gesture coordinate mapping may be incorrect");
       }
 #endif
       iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
@@ -436,6 +466,7 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       default:
         iren->InvokeEvent(vtkCommand::PinchEvent, e2);
       }
+      iren->SetRotation(-1.0*pinch->lastRotationAngle());
       iren->SetRotation(-1.0*pinch->rotationAngle());
       switch (pinch->state())
       {
@@ -449,17 +480,13 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       default:
         iren->InvokeEvent(vtkCommand::RotateEvent, e2);
       }
-    }
-
-    if (QPanGesture *pan = static_cast<QPanGesture*>(e2->gesture(Qt::PanGesture)))
-    {
-      e2->accept(Qt::PanGesture);
-
-      QPointF offset = pan->offset();
-      double translation[2] = { (offset.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
-                               -(offset.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance) };
+      // Based on the center point, the pinch gesture contains information about the pan gesture as well
+      QPointF centerPoint = pinch->centerPoint();
+      QPointF lastCenterPoint = pinch->lastCenterPoint();
+      double translation[2] = { (centerPoint.x() - lastCenterPoint.x()) * this->DevicePixelRatio + this->DevicePixelRatioTolerance,
+                               -(centerPoint.y() - lastCenterPoint.y()) * this->DevicePixelRatio + this->DevicePixelRatioTolerance };
       iren->SetTranslation(translation);
-      switch (pan->state())
+      switch (pinch->state())
       {
       case Qt::GestureStarted:
         iren->InvokeEvent(vtkCommand::StartPanEvent, e2);
@@ -472,17 +499,33 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
         iren->InvokeEvent(vtkCommand::PanEvent, e2);
       }
     }
+    //else if (QPanGesture *pan = static_cast<QPanGesture*>(e2->gesture(Qt::PanGesture)))
+    //{
+    //  e2->accept(Qt::PanGesture);
+
+    //  QPointF delta = pan->delta();
+    //  double translation[2] = { (delta.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
+    //                           -(delta.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance) };
+    //  iren->SetTranslation(translation);
+    //  switch (pan->state())
+    //  {
+    //  case Qt::GestureStarted:
+    //    iren->InvokeEvent(vtkCommand::StartPanEvent, e2);
+    //    break;
+    //  case Qt::GestureFinished:
+    //  case Qt::GestureCanceled:
+    //    iren->InvokeEvent(vtkCommand::EndPanEvent, e2);
+    //    break;
+    //  default:
+    //    iren->InvokeEvent(vtkCommand::PanEvent, e2);
+    //  }
+    //}
 
     if (QTapGesture *tap = static_cast<QTapGesture*>(e2->gesture(Qt::TapGesture)))
     {
       e2->accept(Qt::TapGesture);
 
-      QPoint position = tap->position().toPoint();
-      QWidget *widget = qobject_cast<QWidget *>(this->parent());
-      if (widget)
-      {
-        position = widget->mapFromGlobal(position);
-      }
+      QPointF position = tap->position().toPoint();
       iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
                                      static_cast<int>(position.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance));
       if (tap->state() == Qt::GestureStarted)
@@ -495,25 +538,24 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
     {
       e2->accept(Qt::TapAndHoldGesture);
 
-      QPoint position = tapAndHold->position().toPoint();
+      QPointF position = tapAndHold->position().toPoint();
       QWidget *widget = qobject_cast<QWidget *>(this->parent());
       if (widget)
       {
-        position = widget->mapFromGlobal(position);
+        position = widget->mapFromGlobal(tapAndHold->position().toPoint());
+      }
+      else
+      {
+        // TapAndHold gesture position is in global coordinates, but could not find a widget to convert to local coordinates
+        // QVTKInteractorAdapter parent is not set in QVTKRenderWindowAdapter. Gesture coordinate mapping may be incorrect.
+        qWarning("Could not find parent widget. Gesture coordinate mapping may be incorrect");
       }
       iren->SetEventInformationFlipY(static_cast<int>(position.x() * this->DevicePixelRatio + this->DevicePixelRatioTolerance),
-                                     static_cast<int>(position.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance));   
+                                     static_cast<int>(position.y() * this->DevicePixelRatio + this->DevicePixelRatioTolerance));
       if (tapAndHold->state() == Qt::GestureStarted)
       {
         iren->InvokeEvent(vtkCommand::LongTapEvent, e2);
-      } 
-    }
-
-    if (QSwipeGesture *swipe = static_cast<QSwipeGesture*>(e2->gesture(Qt::SwipeGesture)))
-    {
-      e2->accept(Qt::SwipeGesture);
-      iren->SetRotation(swipe->swipeAngle());
-      iren->InvokeEvent(vtkCommand::SwipeEvent, e2);
+      }
     }
 
     iren->SetEventPosition(eventPosition);
@@ -673,7 +715,7 @@ const char* qt_key_to_key_sym(Qt::Key i, Qt::KeyboardModifiers modifiers)
       QVTK_HANDLE(Qt::Key_F24, "F24")
       QVTK_HANDLE(Qt::Key_NumLock, "Num_Lock")
       QVTK_HANDLE(Qt::Key_ScrollLock, "Scroll_Lock")
-
+      QVTK_HANDLE(Qt::Key_Meta, "Meta")
       default:
     break;
   }
