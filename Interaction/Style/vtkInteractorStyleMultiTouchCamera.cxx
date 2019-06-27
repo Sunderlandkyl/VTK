@@ -125,24 +125,14 @@ void vtkInteractorStyleMultiTouchCamera::OnPinch()
 
   vtkCamera *camera = this->CurrentRenderer->GetActiveCamera();
 
-  int *pinchPositionDisplay = this->Interactor->GetEventPositions(pointer);
-
-  // Calculate the focal depth since we'll be using it a lot
-  double viewFocus[4], focalDepth;
-  camera->GetFocalPoint(viewFocus);
-  this->ComputeWorldToDisplay(viewFocus[0], viewFocus[1], viewFocus[2],
-    viewFocus);
-  focalDepth = viewFocus[2];
+  int* pinchPostionDisplay = this->Interactor->GetEventPositions(pointer);
 
   // Remember the position of the center of the pinch in world coordinates
   // This position should stay in the same location on the screen after the dolly has been performed
-  double oldPickPoint[4] = { 0,0,0,0 };
-  this->ComputeDisplayToWorld(pinchPositionDisplay[0],
-                              pinchPositionDisplay[1],
-                              focalDepth,
-                              oldPickPoint);
+  double oldWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], pinchPostionDisplay[2], oldWorldPosition);
 
-  double dyf = this->Interactor->GetScale() / this->Interactor->GetLastScale();
+  double dyf = this->Interactor->GetScale()/this->Interactor->GetLastScale();
   if (camera->GetParallelProjection())
   {
     camera->SetParallelScale(camera->GetParallelScale() / dyf);
@@ -156,27 +146,25 @@ void vtkInteractorStyleMultiTouchCamera::OnPinch()
     }
   }
 
-  camera->GetFocalPoint(viewFocus);
-  this->ComputeWorldToDisplay(viewFocus[0], viewFocus[1], viewFocus[2],
-    viewFocus);
-  focalDepth = viewFocus[2];
-
   // New position at the center of the pinch gesture
-  double newPickPoint[4] = { 0,0,0,0 };
-  this->ComputeDisplayToWorld(pinchPositionDisplay[0],
-                              pinchPositionDisplay[1],
-                              focalDepth,
-                              newPickPoint);
+  double newWorldPosition[4] = { 0,0,0,0 };
+  vtkInteractorObserver::ComputeDisplayToWorld(this->CurrentRenderer, pinchPostionDisplay[0], pinchPostionDisplay[1], pinchPostionDisplay[2], newWorldPosition);
+
+  vtkNew<vtkPlane> plane;
+  plane->SetOrigin(camera->GetFocalPoint());
+  plane->SetNormal(camera->GetViewPlaneNormal());
+  plane->ProjectPoint(newWorldPosition, newWorldPosition);
+  plane->ProjectPoint(oldWorldPosition, oldWorldPosition);
 
   // Determine how far the pinch center has been shifted from it's original location
-  double motionVector[4] = { 0,0,0 };
-  vtkMath::Subtract(oldPickPoint, newPickPoint, motionVector);
+  double deltaWorld[4] = { 0,0,0 };
+  vtkMath::Subtract(oldWorldPosition, newWorldPosition, deltaWorld);
 
   // Translate the camera to compensate for the shift of the pinch center
-  vtkNew<vtkTransform> cameraTransform;
-  cameraTransform->Identity();
-  cameraTransform->Translate(motionVector);
-  camera->ApplyTransform(cameraTransform);
+  vtkNew<vtkTransform> deltaWorldTransform;
+  deltaWorldTransform->Identity();
+  deltaWorldTransform->Translate(deltaWorld);
+  camera->ApplyTransform(deltaWorldTransform);
 
   if (this->Interactor->GetLightFollowCamera())
   {

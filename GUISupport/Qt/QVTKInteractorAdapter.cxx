@@ -39,6 +39,7 @@
 #include <QSignalMapper>
 #include <QTimer>
 #include <QResizeEvent>
+#include <QTabletEvent>
 #include <QGestureEvent>
 #include <QWidget>
 
@@ -126,6 +127,105 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
   // the following events only happen if the interactor is enabled
   if(!iren->GetEnabled())
     return false;
+
+  bool legacyTabletMode = false; // TODO: add as property somewhere
+  if (!legacyTabletMode && (
+    t == QEvent::TabletEnterProximity ||
+    t == QEvent::TabletLeaveProximity ||
+    t == QEvent::TabletMove ||
+    t == QEvent::TabletPress ||
+    t == QEvent::TabletRelease ||
+    t == QEvent::TabletTrackingChange))
+  {
+    QTabletEvent* tabletEvent = dynamic_cast<QTabletEvent*>(e);
+    iren->SetEventInformationFlipY(static_cast<int>(tabletEvent->pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      static_cast<int>(tabletEvent->pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      (tabletEvent->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
+      (tabletEvent->modifiers() & Qt::ShiftModifier) > 0 ? 1 : 0,
+      0, 0, nullptr, 0);
+    int tabletButtons = 0;
+    if (tabletEvent->buttons().testFlag(Qt::LeftButton))
+    {
+      tabletButtons |= vtkRenderWindowInteractor::TabletButtonType::LeftButton;
+    }
+    if (tabletEvent->buttons().testFlag(Qt::RightButton))
+    {
+      tabletButtons |= vtkRenderWindowInteractor::TabletButtonType::RightButton;
+    }
+    iren->SetTabletButtons(tabletButtons);
+    iren->SetTabletPointer(tabletEvent->pointerType() == QTabletEvent::Eraser ?
+      vtkRenderWindowInteractor::TabletPointerType::Eraser : vtkRenderWindowInteractor::TabletPointerType::Pen);
+    iren->SetTabletXTilt(tabletEvent->xTilt());
+    iren->SetTabletYTilt(tabletEvent->yTilt());
+    iren->SetScale(tabletEvent->pressure());
+    switch (tabletEvent->type())
+    {
+    //case QEvent::TabletEnterProximity:
+    //  iren->InvokeEvent(vtkCommand::TabletEnterProximityEvent, tabletEvent);
+    //  break;
+    //case QEvent::TabletLeaveProximity:
+    //  iren->InvokeEvent(vtkCommand::TabletLeaveProximityEvent, tabletEvent);
+    //  iren->SetTabletPointer(tabletEvent == QTabletEvent::Eraser); //TODOI: Add pen modifier
+    //  break;
+    case QEvent::TabletMove:
+      iren->InvokeEvent(vtkCommand::TabletMoveEvent, tabletEvent);
+      break;
+    case QEvent::TabletPress:
+      iren->InvokeEvent(vtkCommand::TabletPressEvent, tabletEvent);
+      break;
+    case QEvent::TabletRelease:
+      iren->InvokeEvent(vtkCommand::TabletReleaseEvent, tabletEvent);
+      break;
+    case QEvent::TabletTrackingChange:
+      iren->InvokeEvent(vtkCommand::TabletTrackingChangeEvent, tabletEvent);
+      break;
+    }
+    tabletEvent->accept();
+  }
+
+  if (t == QEvent::TouchBegin ||
+    t == QEvent::TouchUpdate ||
+    t == QEvent::TouchEnd)
+  {
+    QTouchEvent* e2 = dynamic_cast<QTouchEvent*>(e);
+    foreach(const QTouchEvent::TouchPoint & point, e2->touchPoints())
+    {
+      if (point.id() >= VTKI_MAX_POINTERS)
+      {
+        break;
+      }
+
+      // give interactor the event information
+      iren->SetEventInformationFlipY(static_cast<int>(point.pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+        static_cast<int>(point.pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+        (e2->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
+        (e2->modifiers() & Qt::ShiftModifier) > 0 ? 1 : 0,
+        0, 0, nullptr, point.id());
+    }
+    foreach(const QTouchEvent::TouchPoint & point, e2->touchPoints())
+    {
+      if (point.id() >= VTKI_MAX_POINTERS)
+      {
+        break;
+      }
+
+      iren->SetPointerIndex(point.id());
+      if (point.state() & Qt::TouchPointReleased)
+      {
+        iren->InvokeEvent(vtkCommand::LeftButtonReleaseEvent, nullptr);
+      }
+      if (point.state() & Qt::TouchPointPressed)
+      {
+        iren->InvokeEvent(vtkCommand::LeftButtonPressEvent, nullptr);
+      }
+      if (point.state() & Qt::TouchPointMoved)
+      {
+        iren->InvokeEvent(vtkCommand::MouseMoveEvent, nullptr);
+      }
+    }
+    e2->accept();
+    return true;
+  }
 
   if(t == QEvent::MouseButtonPress ||
      t == QEvent::MouseButtonRelease ||
@@ -699,7 +799,7 @@ const char* qt_key_to_key_sym(Qt::Key i, Qt::KeyboardModifiers modifiers)
       QVTK_HANDLE(Qt::Key_F24, "F24")
       QVTK_HANDLE(Qt::Key_NumLock, "Num_Lock")
       QVTK_HANDLE(Qt::Key_ScrollLock, "Scroll_Lock")
-
+      QVTK_HANDLE(Qt::Key_Meta, "Meta")
       default:
     break;
   }

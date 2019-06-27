@@ -195,6 +195,7 @@ QVTKOpenGLNativeWidget::QVTKOpenGLNativeWidget(QWidget* parentWdg, Qt::WindowFla
   this->grabGesture(Qt::TapGesture);
   this->grabGesture(Qt::TapAndHoldGesture);
   this->grabGesture(Qt::SwipeGesture);
+  this->setTabletTracking(true);
 }
 
 //-----------------------------------------------------------------------------

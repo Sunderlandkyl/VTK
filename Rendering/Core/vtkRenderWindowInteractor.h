@@ -567,6 +567,31 @@ public:
   vtkGetVector2Macro(LastTranslation, double);
   //@}
 
+  enum TabletPointerType
+  {
+    Pen,
+    Eraser,
+  };
+  /*
+   *
+   */
+  vtkSetMacro(TabletPointer, int);
+  vtkGetMacro(TabletPointer, int);
+
+  // Flags indicating which buttons are pressed on the tablet
+  enum TabletButtonType
+  {
+    LeftButton =  0x01,
+    RightButton = 0x02,
+  };
+  vtkSetMacro(TabletButtons, int);
+  vtkGetMacro(TabletButtons, int);
+
+  vtkSetMacro(TabletXTilt, double);
+  vtkGetMacro(TabletXTilt, double);
+  vtkSetMacro(TabletYTilt, double);
+  vtkGetMacro(TabletYTilt, double);
+
   //@{
   /**
    * Set all the event information in one call.
@@ -842,6 +867,12 @@ protected:
   // control the fly to
   int NumberOfFlyFrames;
   double Dolly;
+
+  // Tablet parameters
+  int TabletButtons;
+  int TabletPointer;
+  double TabletXTilt;
+  double TabletYTilt;
 
   /**
    * These methods allow the interactor to control which events are
