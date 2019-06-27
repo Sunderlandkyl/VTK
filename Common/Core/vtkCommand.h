@@ -363,7 +363,13 @@
     _vtk_add_event(Button3DEvent)                                                                  \
     _vtk_add_event(TextEvent)                                                                      \
     _vtk_add_event(LeftButtonDoubleClickEvent)                                                     \
-    _vtk_add_event(RightButtonDoubleClickEvent)
+    _vtk_add_event(RightButtonDoubleClickEvent)                                                    \
+    _vtk_add_event(TabletEnterProximityEvent)                                                      \
+    _vtk_add_event(TabletLeaveProximityEvent)                                                      \
+    _vtk_add_event(TabletMoveEvent)                                                                \
+    _vtk_add_event(TabletPressEvent)                                                               \
+    _vtk_add_event(TabletReleaseEvent)                                                             \
+    _vtk_add_event(TabletTrackingChangeEvent)
 // clang-format on
 
 #define vtkEventDeclarationMacro(_enum_name)                                                       \

@@ -39,6 +39,7 @@
 #include <QGestureEvent>
 #include <QSignalMapper>
 #include <QTimer>
+#include <QTabletEvent>
 #include <QWidget>
 
 #include "vtkCommand.h"
@@ -116,8 +117,58 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
   if (!iren->GetEnabled())
     return false;
 
-  if (t == QEvent::MouseButtonPress || t == QEvent::MouseButtonRelease ||
-    t == QEvent::MouseButtonDblClick || t == QEvent::MouseMove)
+  if (!iren->GetEnableLegacyTableMode() && (
+    t == QEvent::TabletEnterProximity ||
+    t == QEvent::TabletLeaveProximity ||
+    t == QEvent::TabletMove ||
+    t == QEvent::TabletPress ||
+    t == QEvent::TabletRelease ||
+    t == QEvent::TabletTrackingChange))
+  {
+    QTabletEvent* tabletEvent = dynamic_cast<QTabletEvent*>(e);
+    iren->SetEventInformationFlipY(static_cast<int>(tabletEvent->pos().x() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      static_cast<int>(tabletEvent->pos().y() * this->DevicePixelRatio + DevicePixelRatioTolerance),
+      (tabletEvent->modifiers() & Qt::ControlModifier) > 0 ? 1 : 0,
+      (tabletEvent->modifiers() & Qt::ShiftModifier) > 0 ? 1 : 0,
+      0, 0, nullptr, 0);
+    int tabletButtons = 0;
+    if (tabletEvent->buttons().testFlag(Qt::LeftButton))
+    {
+      tabletButtons |= vtkRenderWindowInteractor::TabletButtonType::LeftButton;
+    }
+    if (tabletEvent->buttons().testFlag(Qt::RightButton))
+    {
+      tabletButtons |= vtkRenderWindowInteractor::TabletButtonType::RightButton;
+    }
+    iren->SetTabletButtons(tabletButtons);
+    iren->SetTabletPointer(tabletEvent->pointerType() == QTabletEvent::Pen ?
+      vtkRenderWindowInteractor::TabletPointerType::Pen : vtkRenderWindowInteractor::TabletPointerType::Eraser);
+    iren->SetTabletXTilt(tabletEvent->xTilt());
+    iren->SetTabletYTilt(tabletEvent->yTilt());
+    iren->SetTabletPressure(tabletEvent->pressure());
+    switch (tabletEvent->type())
+    {
+    case QEvent::TabletMove:
+      iren->InvokeEvent(vtkCommand::TabletMoveEvent, tabletEvent);
+      break;
+    case QEvent::TabletPress:
+      iren->InvokeEvent(vtkCommand::TabletPressEvent, tabletEvent);
+      break;
+    case QEvent::TabletRelease:
+      iren->InvokeEvent(vtkCommand::TabletReleaseEvent, tabletEvent);
+      break;
+    case QEvent::TabletTrackingChange:
+      iren->InvokeEvent(vtkCommand::TabletTrackingChangeEvent, tabletEvent);
+      break;
+    }
+    tabletEvent->accept();
+    return true;
+  }
+
+  if(t == QEvent::MouseButtonPress ||
+     t == QEvent::MouseButtonRelease ||
+     t == QEvent::MouseButtonDblClick ||
+     t == QEvent::MouseMove)
   {
     QMouseEvent* e2 = static_cast<QMouseEvent*>(e);
 
@@ -669,7 +720,7 @@ const char* qt_key_to_key_sym(Qt::Key i, Qt::KeyboardModifiers modifiers)
     QVTK_HANDLE(Qt::Key_F24, "F24")
     QVTK_HANDLE(Qt::Key_NumLock, "Num_Lock")
     QVTK_HANDLE(Qt::Key_ScrollLock, "Scroll_Lock")
-
+      QVTK_HANDLE(Qt::Key_Meta, "Meta")
     default:
       break;
   }

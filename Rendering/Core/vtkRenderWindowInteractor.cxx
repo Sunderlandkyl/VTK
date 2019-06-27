@@ -130,6 +130,13 @@ vtkRenderWindowInteractor::vtkRenderWindowInteractor()
   this->TimerEventDuration = 0;
   this->TimerEventPlatformId = 0;
 
+  this->EnableLegacyTableMode = true;
+  this->TabletButtons = 0;
+  this->TabletPointer = vtkRenderWindowInteractor::TabletPointerType::None;
+  this->TabletXTilt = 0.0;
+  this->TabletYTilt = 0.0;
+  this->TabletPressure = 0.0;
+
   this->TimerMap = new vtkTimerIdMap;
   this->TimerDuration = 10;
   this->ObserverMediator = nullptr;

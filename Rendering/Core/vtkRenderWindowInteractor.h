@@ -609,6 +609,71 @@ public:
 
   //@{
   /**
+   * Enable/disable legacy tablet event handling
+   */
+  vtkSetMacro(EnableLegacyTableMode, bool);
+  vtkGetMacro(EnableLegacyTableMode, bool);
+  vtkBooleanMacro(EnableLegacyTableMode, bool);
+
+  //@{
+  /**
+   * Enum that indicates which end of the pen is being used
+   */
+  enum TabletPointerType
+  {
+    None,
+    Pen,
+    Eraser,
+  };
+  //@}
+
+  //@{
+  /*
+   * Set/get the tablet pointer type that is being used
+   */
+  vtkSetMacro(TabletPointer, int);
+  vtkGetMacro(TabletPointer, int);
+  //@}
+
+  //@{
+  /**
+   * Flags indicating which buttons are pressed on the tablet
+   */
+  enum TabletButtonType
+  {
+    LeftButton =  0x01,
+    RightButton = 0x02,
+  };
+  //@}
+
+  //@{
+  /**
+   * Set/get flags indicating which buttons are pressed on the tablet
+   */
+  vtkSetMacro(TabletButtons, int);
+  vtkGetMacro(TabletButtons, int);
+  //@}
+
+  //@{
+  /**
+   * Set/get tablet pointer tilt angle
+   */
+  vtkSetMacro(TabletXTilt, double);
+  vtkGetMacro(TabletXTilt, double);
+  vtkSetMacro(TabletYTilt, double);
+  vtkGetMacro(TabletYTilt, double);
+  //@}
+
+  //@{
+  /**
+   * Set/get tablet pressure
+   */
+  vtkSetMacro(TabletPressure, double);
+  vtkGetMacro(TabletPressure, double);
+  //@}
+
+  //@{
+  /**
    * Set all the event information in one call.
    */
   void SetEventInformation(int x, int y, int ctrl, int shift, char keycode, int repeatcount,
@@ -860,6 +925,14 @@ protected:
   // control the fly to
   int NumberOfFlyFrames;
   double Dolly;
+
+  // Tablet parameters
+  bool EnableLegacyTableMode;
+  int TabletButtons;
+  int TabletPointer;
+  double TabletXTilt;
+  double TabletYTilt;
+  double TabletPressure;
 
   /**
    * These methods allow the interactor to control which events are
