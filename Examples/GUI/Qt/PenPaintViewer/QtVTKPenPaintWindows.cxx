@@ -1,21 +1,21 @@
-
-#include "ui_QtVTKTouchscreenRenderWindows.h"
-#include "QtVTKTouchscreenRenderWindows.h"
+#include "ui_QtVTKPenPaintWindows.h"
 
 // Available interactions:
 // - Tap: Randomizes background color and moves the sphere actor to the location of the tap point
-//      = Touchscreen: 1 finger
+//      = PenPaint: 1 finger
 // - Tap and hold: Switches camera between perspective and orthographic view and moves the cylinder to the location of the tap point
-//      = Touchscreen and MacOS trackpad: 1 finger
+//      = PenPaint and MacOS trackpad: 1 finger
 // - Swipe: Changes the color of the Square/Sphere/Cylinder based on the swipe angle. Angle -> Hue
-//      = Touchscreen: 3 fingers
+//      = PenPaint: 3 fingers
 // - Pinch : Zoom in and out the view, centered on the location of the pinch
-//      = Touchscreen and MacOS trackpad: 2 fingers
+//      = PenPaint and MacOS trackpad: 2 fingers
 // - Rotate: Rotate the view, centered on the location of the pinch
-//      = Touchscreen and MacOS trackpad: 2 fingers
+//      = PenPaint and MacOS trackpad: 2 fingers
 // - Pan: Translate the view
-//      = Touchscreen: 2+ fingers
+//      = PenPaint: 2+ fingers
 //      = MacOS trackpad: Long tap and move
+
+#include "QtVTKPenPaintWindows.h"
 
 #include <vtkActor.h>
 #include <vtkCamera.h>
@@ -175,18 +175,18 @@ public:
 vtkStandardNewMacro(vtkInteractorStyleMultiTouchCameraExample);
 
 //----------------------------------------------------------------------------
-QtVTKTouchscreenRenderWindows::QtVTKTouchscreenRenderWindows(int vtkNotUsed(argc), char* argv[])
+QtVTKPenPaintWindows::QtVTKPenPaintWindows(int vtkNotUsed(argc), char* argv[])
 {
-  this->ui = new Ui_QtVTKTouchscreenRenderWindows;
+  this->ui = new Ui_QtVTKPenPaintWindows;
   this->ui->setupUi(this);
 
   vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
   this->ui->view->setRenderWindow(renderWindow);
 
   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
-  this->ui->view->renderWindow()->AddRenderer(renderer);
+  this->ui->view->GetRenderWindow()->AddRenderer(renderer);
 
-  vtkRenderWindowInteractor* interactor = this->ui->view->interactor();
+  vtkRenderWindowInteractor* interactor = this->ui->view->GetInteractor();
   vtkSmartPointer<vtkInteractorStyleMultiTouchCameraExample> interactorStyle = vtkSmartPointer<vtkInteractorStyleMultiTouchCameraExample>::New();
   interactor->SetInteractorStyle(interactorStyle);
   renderWindow->SetInteractor(interactor);
