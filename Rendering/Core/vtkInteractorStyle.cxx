@@ -261,24 +261,54 @@ void vtkInteractorStyle::SetInteractor(vtkRenderWindowInteractor *i)
                    this->EventCallbackCommand,
                    this->Priority);
 
-    i->AddObserver(vtkCommand::PinchEvent,
-                   this->EventCallbackCommand,
-                   this->Priority);
-    i->AddObserver(vtkCommand::PanEvent,
-                   this->EventCallbackCommand,
-                   this->Priority);
-    i->AddObserver(vtkCommand::RotateEvent,
-                   this->EventCallbackCommand,
-                   this->Priority);
-    i->AddObserver(vtkCommand::TapEvent,
-                   this->EventCallbackCommand,
-                   this->Priority);
-    i->AddObserver(vtkCommand::LongTapEvent,
+    i->AddObserver(vtkCommand::StartSwipeEvent,
                    this->EventCallbackCommand,
                    this->Priority);
     i->AddObserver(vtkCommand::SwipeEvent,
                    this->EventCallbackCommand,
                    this->Priority);
+    i->AddObserver(vtkCommand::EndSwipeEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
+    i->AddObserver(vtkCommand::StartPinchEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::PinchEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::EndPinchEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
+    i->AddObserver(vtkCommand::StartRotateEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::RotateEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::EndRotateEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
+    i->AddObserver(vtkCommand::StartPanEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::PanEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+    i->AddObserver(vtkCommand::EndPanEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
+    i->AddObserver(vtkCommand::TapEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
+    i->AddObserver(vtkCommand::LongTapEvent,
+                   this->EventCallbackCommand,
+                   this->Priority);
+
     i->AddObserver(vtkCommand::FourthButtonPressEvent,
                    this->EventCallbackCommand,
                    this->Priority);
@@ -685,6 +715,25 @@ void vtkInteractorStyle::EndTwoPointer()
   this->StopState();
 }
 
+//----------------------------------------------------------------------------
+void vtkInteractorStyle::StartGesture()
+{
+  if (this->State != VTKIS_NONE)
+  {
+    return;
+  }
+  this->StartState(VTKIS_GESTURE);
+}
+
+//----------------------------------------------------------------------------
+void vtkInteractorStyle::EndGesture()
+{
+  if (this->State != VTKIS_GESTURE)
+  {
+    return;
+  }
+  this->StopState();
+}
 
 //----------------------------------------------------------------------------
 // By overriding the Rotate, Rotate members we can
@@ -1226,6 +1275,51 @@ void vtkInteractorStyle::ProcessEvents(vtkObject* vtkNotUsed(object),
       self->DelegateTDxEvent(event,calldata);
       break;
 
+    case vtkCommand::StartSwipeEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::StartSwipeEvent))
+      {
+        self->InvokeEvent(vtkCommand::StartSwipeEvent, nullptr);
+      }
+      else
+      {
+        self->OnStartSwipe();
+      }
+      break;
+    case vtkCommand::SwipeEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::SwipeEvent))
+      {
+        self->InvokeEvent(vtkCommand::SwipeEvent, nullptr);
+      }
+      else
+      {
+        self->OnSwipe();
+      }
+      break;
+    case vtkCommand::EndSwipeEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::EndSwipeEvent))
+      {
+        self->InvokeEvent(vtkCommand::EndSwipeEvent, nullptr);
+      }
+      else
+      {
+        self->OnEndSwipe();
+      }
+      break;
+
+    case vtkCommand::StartPinchEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::StartPinchEvent))
+      {
+        self->InvokeEvent(vtkCommand::StartPinchEvent, nullptr);
+      }
+      else
+      {
+        self->OnStartPinch();
+      }
+      break;
     case vtkCommand::PinchEvent:
       if (self->HandleObservers &&
           self->HasObserver(vtkCommand::PinchEvent))
@@ -1235,6 +1329,29 @@ void vtkInteractorStyle::ProcessEvents(vtkObject* vtkNotUsed(object),
       else
       {
         self->OnPinch();
+      }
+      break;
+    case vtkCommand::EndPinchEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::EndPinchEvent))
+      {
+        self->InvokeEvent(vtkCommand::EndPinchEvent, nullptr);
+      }
+      else
+      {
+        self->OnEndPinch();
+      }
+      break;
+
+    case vtkCommand::StartPanEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::StartPanEvent))
+      {
+        self->InvokeEvent(vtkCommand::StartPanEvent, nullptr);
+      }
+      else
+      {
+        self->OnStartPan();
       }
       break;
     case vtkCommand::PanEvent:
@@ -1248,7 +1365,29 @@ void vtkInteractorStyle::ProcessEvents(vtkObject* vtkNotUsed(object),
         self->OnPan();
       }
       break;
+    case vtkCommand::EndPanEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::EndPanEvent))
+      {
+        self->InvokeEvent(vtkCommand::EndPanEvent, nullptr);
+      }
+      else
+      {
+        self->OnEndPan();
+      }
+      break;
 
+    case vtkCommand::StartRotateEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::StartRotateEvent))
+      {
+        self->InvokeEvent(vtkCommand::StartRotateEvent, nullptr);
+      }
+      else
+      {
+        self->OnStartRotate();
+      }
+      break;
     case vtkCommand::RotateEvent:
       if (self->HandleObservers &&
           self->HasObserver(vtkCommand::RotateEvent))
@@ -1258,6 +1397,17 @@ void vtkInteractorStyle::ProcessEvents(vtkObject* vtkNotUsed(object),
       else
       {
         self->OnRotate();
+      }
+      break;
+    case vtkCommand::EndRotateEvent:
+      if (self->HandleObservers &&
+        self->HasObserver(vtkCommand::EndRotateEvent))
+      {
+        self->InvokeEvent(vtkCommand::EndRotateEvent, nullptr);
+      }
+      else
+      {
+        self->OnEndRotate();
       }
       break;
 
@@ -1282,18 +1432,6 @@ void vtkInteractorStyle::ProcessEvents(vtkObject* vtkNotUsed(object),
       else
       {
         self->OnLongTap();
-      }
-      break;
-
-    case vtkCommand::SwipeEvent:
-      if (self->HandleObservers &&
-          self->HasObserver(vtkCommand::SwipeEvent))
-      {
-        self->InvokeEvent(vtkCommand::SwipeEvent,nullptr);
-      }
-      else
-      {
-        self->OnSwipe();
       }
       break;
 
