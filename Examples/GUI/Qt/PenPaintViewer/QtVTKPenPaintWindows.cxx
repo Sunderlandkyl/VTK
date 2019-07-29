@@ -181,7 +181,7 @@ QtVTKPenPaintWindows::QtVTKPenPaintWindows(int vtkNotUsed(argc), char* argv[])
   this->ui->setupUi(this);
 
   vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow = vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
-  this->ui->view->SetRenderWindow(renderWindow);
+  this->ui->view->setRenderWindow(renderWindow);
 
   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
   this->ui->view->GetRenderWindow()->AddRenderer(renderer);
