@@ -2473,16 +2473,16 @@ void vtkOpenGLGPUVolumeRayCastMapper::ReplaceShaderShading(
   }
   else
   {
-  vtkShaderProgram::Substitute(fragmentShader,
-    "//VTK::Shading::Impl",
-    vtkvolume::ShadingSingleInput(ren,
-      this,
-      vol,
-      this->MaskInput,
-      this->Impl->CurrentMask,
-      this->MaskType,
-      numComps,
-      independentComponents));
+    vtkShaderProgram::Substitute(fragmentShader,
+      "//VTK::Shading::Impl",
+      vtkvolume::ShadingSingleInput(ren,
+        this,
+        vol,
+        this->MaskInput,
+        this->Impl->CurrentMask,
+        this->MaskType,
+        numComps,
+        independentComponents));
   }
 
   vtkShaderProgram::Substitute(fragmentShader,
@@ -2529,6 +2529,16 @@ void vtkOpenGLGPUVolumeRayCastMapper::ReplaceShaderCompute(
     vtkShaderProgram::Substitute(fragmentShader,
       "//VTK::ComputeColor::Dec",
       vtkvolume::ComputeColorMultiDeclaration(this->AssembledInputs));
+
+    vtkShaderProgram::Substitute(fragmentShader,
+      "//VTK::ComputeLighting::Dec",
+      vtkvolume::ComputeLightingMultiDeclaration(ren,
+        this,
+        vol,
+        numComps,
+        independentComponents,
+        this->Impl->NumberOfLights,
+        this->Impl->LightComplexity));
   }
   else
   {
@@ -2581,17 +2591,17 @@ void vtkOpenGLGPUVolumeRayCastMapper::ReplaceShaderCompute(
             vtkvolume::Transfer2DDeclaration(this->AssembledInputs));
       break;
     }
-  }
 
-  vtkShaderProgram::Substitute(fragmentShader,
-    "//VTK::ComputeLighting::Dec",
-    vtkvolume::ComputeLightingDeclaration(ren,
-      this,
-      vol,
-      numComps,
-      independentComponents,
-      this->Impl->NumberOfLights,
-      this->Impl->LightComplexity));
+    vtkShaderProgram::Substitute(fragmentShader,
+      "//VTK::ComputeLighting::Dec",
+      vtkvolume::ComputeLightingDeclaration(ren,
+        this,
+        vol,
+        numComps,
+        independentComponents,
+        this->Impl->NumberOfLights,
+        this->Impl->LightComplexity));
+  }
 
   vtkShaderProgram::Substitute(fragmentShader,
     "//VTK::ComputeRayDirection::Dec",
@@ -3149,6 +3159,7 @@ bool vtkOpenGLGPUVolumeRayCastMapper::vtkInternal::UpdateInputs(vtkRenderer* ren
   return success;
 }
 
+//----------------------------------------------------------------------------
 int vtkOpenGLGPUVolumeRayCastMapper::vtkInternal::GetComponentMode(
   vtkVolumeProperty* prop, vtkDataArray* array) const
 {
@@ -3235,7 +3246,7 @@ void vtkOpenGLGPUVolumeRayCastMapper::GPURender(vtkRenderer* ren,
   this->Impl->UpdateSamplingDistance(ren);
   this->Impl->UpdateTransferFunctions(ren);
 
-  // Masks are only supported on single-input rendring.
+  // Masks are only supported on single-input rendering.
   if (!this->Impl->MultiVolume)
   {
     this->Impl->LoadMask(ren);

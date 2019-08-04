@@ -178,8 +178,7 @@ namespace vtkvolume
 
     // For multiple inputs (numInputs > 1), an additional transformation is
     // needed for the bounding-box.
-    const int numTransf = (numInputs > 1) ? numInputs + 1 :
-      1;
+    const int numTransf = (numInputs > 1) ? numInputs + 1 : 1;
     toShaderStr <<
       "uniform mat4 in_volumeMatrix[" << numTransf << "];\n"
       "uniform mat4 in_inverseVolumeMatrix[" << numTransf << "];\n"
@@ -227,6 +226,9 @@ namespace vtkvolume
       "\n"
       "uniform vec2 in_averageIPRange;\n";
 
+    toShaderStr <<
+      "vec4 g_eyePosObjs[" << numInputs << "];\n";
+
     const bool hasGradientOpacity = HasGradientOpacity(inputs);
     if (lightingComplexity > 0 || hasGradientOpacity)
     {
@@ -265,10 +267,10 @@ namespace vtkvolume
         "uniform vec3 in_lightAmbientColor[1];\n"
         "uniform vec3 in_lightDiffuseColor[1];\n"
         "uniform vec3 in_lightSpecularColor[1];\n"
-        "vec4 g_lightPosObj;\n"
-        "vec3 g_ldir;\n"
-        "vec3 g_vdir;\n"
-        "vec3 g_h;\n";
+        "vec4 g_lightPosObj[" << numInputs << "];\n"
+        "vec3 g_ldir[" << numInputs << "];\n"
+        "vec3 g_vdir[" << numInputs << "];\n"
+        "vec3 g_h[" << numInputs << "];\n";
     }
 
     if (noOfComponents > 1 && independentComponents)
@@ -314,13 +316,14 @@ namespace vtkvolume
     vtkOpenGLGPUVolumeRayCastMapper* glMapper =
       vtkOpenGLGPUVolumeRayCastMapper::SafeDownCast(mapper);
     vtkVolume* vol = inputs.begin()->second.Volume;
+    const int numInputs = static_cast<int>(inputs.size());
 
-    std::string shaderStr;
+    std::ostringstream shaderStr;
     if (glMapper->GetCurrentPass() != vtkOpenGLGPUVolumeRayCastMapper::DepthPass &&
         glMapper->GetUseDepthPass() && glMapper->GetBlendMode() ==
         vtkVolumeMapper::COMPOSITE_BLEND)
     {
-      shaderStr += std::string("\
+      shaderStr << "\
         \n  //\
         \n  vec2 fragTexCoord2 = (gl_FragCoord.xy - in_windowLowerLeftCorner) *\
         \n                        in_inverseWindowSize;\
@@ -336,67 +339,75 @@ namespace vtkvolume
         \n              in_inverseProjectionMatrix *\
         \n              rayOrigin;\
         \n  rayOrigin /= rayOrigin.w;\
-        \n  g_rayOrigin = rayOrigin.xyz;"
-      );
+        \n  g_rayOrigin = rayOrigin.xyz;";
     }
     else
     {
-      shaderStr += std::string("\
+      shaderStr << "\
         \n  // Get the 3D texture coordinates for lookup into the in_volume dataset\
-        \n  g_rayOrigin = ip_textureCoords.xyz;"
-      );
+        \n  g_rayOrigin = ip_textureCoords.xyz;";
     }
 
-      shaderStr += std::string("\
-        \n\
-        \n  // Eye position in dataset space\
-        \n  g_eyePosObj = in_inverseVolumeMatrix[0] * vec4(in_cameraPos, 1.0);\
-        \n\
-        \n  // Getting the ray marching direction (in dataset space);\
-        \n  vec3 rayDir = computeRayDirection();\
-        \n\
-        \n  // Multiply the raymarching direction with the step size to get the\
-        \n  // sub-step size we need to take at each raymarching step\
-        \n  g_dirStep = (ip_inverseTextureDataAdjusted *\
-        \n              vec4(rayDir, 0.0)).xyz * in_sampleDistance;\
-        \n\
-        \n  // 2D Texture fragment coordinates [0,1] from fragment coordinates.\
-        \n  // The frame buffer texture has the size of the plain buffer but \
-        \n  // we use a fraction of it. The texture coordinate is less than 1 if\
-        \n  // the reduction factor is less than 1.\
-        \n  // Device coordinates are between -1 and 1. We need texture\
-        \n  // coordinates between 0 and 1. The in_depthSampler\
-        \n  // buffer has the original size buffer.\
-        \n  vec2 fragTexCoord = (gl_FragCoord.xy - in_windowLowerLeftCorner) *\
-        \n                      in_inverseWindowSize;\
-        \n\
-        \n  if (in_useJittering)\
-        \n  {\
-        \n    float jitterValue = texture2D(in_noiseSampler, gl_FragCoord.xy / textureSize(in_noiseSampler, 0)).x;\
-        \n    g_rayJitter = g_dirStep * jitterValue;\
-        \n  }\
-        \n  else\
-        \n  {\
-        \n    g_rayJitter = g_dirStep;\
-        \n  }\
-        \n  g_rayOrigin += g_rayJitter;\
-        \n\
-        \n  // Flag to deternmine if voxel should be considered for the rendering\
-        \n  g_skip = false;");
+    shaderStr << "\
+      \n\
+      \n  // Eye position in dataset space\
+      \n  g_eyePosObj = in_inverseVolumeMatrix[0] * vec4(in_cameraPos, 1.0);";
+    for (int i=0; i<numInputs; ++i)
+    {
+      // In multi-volume case the first volume matrix is of the bounding box
+      shaderStr << "\
+        \n  g_eyePosObjs[" << i << "] = in_inverseVolumeMatrix[" << (numInputs>1 ? i+1 : i) << "] * vec4(in_cameraPos, 1.0);";
+    }
+    shaderStr << "\n\
+      \n  // Getting the ray marching direction (in dataset space);\
+      \n  vec3 rayDir = computeRayDirection();\
+      \n\
+      \n  // Multiply the raymarching direction with the step size to get the\
+      \n  // sub-step size we need to take at each raymarching step\
+      \n  g_dirStep = (ip_inverseTextureDataAdjusted *\
+      \n              vec4(rayDir, 0.0)).xyz * in_sampleDistance;\
+      \n\
+      \n  // 2D Texture fragment coordinates [0,1] from fragment coordinates.\
+      \n  // The frame buffer texture has the size of the plain buffer but \
+      \n  // we use a fraction of it. The texture coordinate is less than 1 if\
+      \n  // the reduction factor is less than 1.\
+      \n  // Device coordinates are between -1 and 1. We need texture\
+      \n  // coordinates between 0 and 1. The in_depthSampler\
+      \n  // buffer has the original size buffer.\
+      \n  vec2 fragTexCoord = (gl_FragCoord.xy - in_windowLowerLeftCorner) *\
+      \n                      in_inverseWindowSize;\
+      \n\
+      \n  if (in_useJittering)\
+      \n  {\
+      \n    float jitterValue = texture2D(in_noiseSampler, gl_FragCoord.xy / textureSize(in_noiseSampler, 0)).x;\
+      \n    g_rayJitter = g_dirStep * jitterValue;\
+      \n  }\
+      \n  else\
+      \n  {\
+      \n    g_rayJitter = g_dirStep;\
+      \n  }\
+      \n  g_rayOrigin += g_rayJitter;\
+      \n\
+      \n  // Flag to deternmine if voxel should be considered for the rendering\
+      \n  g_skip = false;";
 
     if (vol->GetProperty()->GetShade() && lightingComplexity == 1)
     {
-        shaderStr += std::string("\
-          \n  // Light position in dataset space\
-          \n  g_lightPosObj = (in_inverseVolumeMatrix[0] *\
+      shaderStr << "\
+        \n  // Light position in dataset space";
+      for (int i=0; i<numInputs; ++i)
+      {
+        // In multi-volume case the first volume matrix is of the bounding box
+        shaderStr << "\
+          \n  g_lightPosObj[" << i << "] = (in_inverseVolumeMatrix[" << (numInputs>1 ? i+1 : i) << "] *\
           \n                      vec4(in_cameraPos, 1.0));\
-          \n  g_ldir = normalize(g_lightPosObj.xyz - ip_vertexPos);\
-          \n  g_vdir = normalize(g_eyePosObj.xyz - ip_vertexPos);\
-          \n  g_h = normalize(g_ldir + g_vdir);"
-        );
+          \n  g_ldir[" << i << "] = normalize(g_lightPosObj[" << i << "].xyz - ip_vertexPos);\
+          \n  g_vdir[" << i << "] = normalize(g_eyePosObjs[" << i << "].xyz - ip_vertexPos);\
+          \n  g_h[" << i << "] = normalize(g_ldir[" << i << "] + g_vdir[" << i << "]);";
+      }
     }
 
-    return shaderStr;
+    return shaderStr.str();
   }
 
   //--------------------------------------------------------------------------
@@ -655,8 +666,8 @@ namespace vtkvolume
           \n    {\
           \n    normal = vec3(0.0, 0.0, 0.0);\
           \n    }\
-          \n   float nDotL = dot(normal, g_ldir);\
-          \n   float nDotH = dot(normal, g_h);\
+          \n   float nDotL = dot(normal, g_ldir[0]);\
+          \n   float nDotH = dot(normal, g_h[0]);\
           \n   if (nDotL < 0.0 && in_twoSidedLighting)\
           \n     {\
           \n     nDotL = -nDotL;\
@@ -823,8 +834,7 @@ namespace vtkvolume
     // gradient-magnitude opacities combined in the same table).
     // For multiple inputs, a different computeGradientOpacity() signature
     // is defined.
-    if (transferMode == vtkVolumeProperty::TF_1D &&
-      glMapper->GetInputCount() == 1)
+    if (transferMode == vtkVolumeProperty::TF_1D && glMapper->GetInputCount() == 1)
     {
       if (volProperty->HasGradientOpacity() &&
           (noOfComponents == 1 || !independentComponents))
@@ -849,6 +859,108 @@ namespace vtkvolume
         \n      computeGradientOpacity(gradient, i) * in_componentWeight[i];\
         \n      }\
         \n    }"
+        );
+      }
+    }
+
+    shaderStr += std::string("\
+      \n  finalColor.a = color.a;\
+      \n  return finalColor;\
+      \n  }"
+    );
+
+    return shaderStr;
+  }
+
+  //--------------------------------------------------------------------------
+  std::string ComputeLightingMultiDeclaration(vtkRenderer* vtkNotUsed(ren),
+                                              vtkVolumeMapper* mapper,
+                                              vtkVolume* vol,
+                                              int noOfComponents,
+                                              int independentComponents,
+                                              int vtkNotUsed(numberOfLights),
+                                              int lightingComplexity)
+  {
+    vtkVolumeProperty* volProperty = vol->GetProperty();
+    std::string shaderStr = std::string("\
+      \nvec4 computeLighting(vec3 texPos, vec4 color, const in sampler2D gradientTF, int volIdx, int component)\
+      \n  {\
+      \n  vec4 finalColor = vec4(0.0);"
+    );
+  
+    // Shading for composite blending only
+    int const shadeReqd = volProperty->GetShade() &&
+                  (mapper->GetBlendMode() == vtkVolumeMapper::COMPOSITE_BLEND ||
+                   mapper->GetBlendMode() == vtkVolumeMapper::ISOSURFACE_BLEND);
+
+    int const transferMode = volProperty->GetTransferFunctionMode();
+
+    if ( (shadeReqd || volProperty->HasGradientOpacity())
+      && transferMode == vtkVolumeProperty::TF_1D )
+    {
+      shaderStr += std::string(
+        "  // Compute gradient function only once\n"
+        "  vec4 gradient = computeGradient(texPos, component, in_volume[volIdx], volIdx);\n");
+    }
+
+    if (shadeReqd && lightingComplexity == 1)
+    {
+      shaderStr += std::string("\
+        \n  vec3 diffuse = vec3(0.0);\
+        \n  vec3 specular = vec3(0.0);\
+        \n  vec3 normal = gradient.xyz;\
+        \n  float normalLength = length(normal);\
+        \n  if (normalLength > 0.0)\
+        \n    {\
+        \n    normal = normalize(normal);\
+        \n    }\
+        \n  else\
+        \n    {\
+        \n    normal = vec3(0.0, 0.0, 0.0);\
+        \n    }\
+        \n   float nDotL = dot(normal, g_ldir[volIdx]);\
+        \n   float nDotH = dot(normal, g_h[volIdx]);\
+        \n   if (nDotL < 0.0 && in_twoSidedLighting)\
+        \n     {\
+        \n     nDotL = -nDotL;\
+        \n     }\
+        \n   if (nDotH < 0.0 && in_twoSidedLighting)\
+        \n     {\
+        \n     nDotH = -nDotH;\
+        \n     }\
+        \n   if (nDotL > 0.0)\
+        \n     {\
+        \n     diffuse = nDotL * in_diffuse[component] *\
+        \n               in_lightDiffuseColor[0] * color.rgb;\
+        \n     }\
+        \n    specular = pow(nDotH, in_shininess[component]) *\
+        \n                 in_specular[component] *\
+        \n                 in_lightSpecularColor[0];\
+        \n  // For the headlight, ignore the light's ambient color\
+        \n  // for now as it is causing the old mapper tests to fail\
+        \n  finalColor.xyz = in_ambient[component] * color.rgb +\
+        \n                   diffuse + specular;\
+        \n");
+    }
+    else
+    {
+      shaderStr += std::string(
+        "\n  finalColor = vec4(color.rgb, 0.0);"
+      );
+    }
+
+    // For 1D transfers only (2D transfer functions hold scalar and
+    // gradient-magnitude opacities combined in the same table).
+    if (transferMode == vtkVolumeProperty::TF_1D)
+    {
+      if (volProperty->HasGradientOpacity() && (noOfComponents == 1 || !independentComponents))
+      {
+        shaderStr += std::string("\
+          \n  if (gradient.w >= 0.0)\
+          \n    {\
+          \n    color.a = color.a *\
+          \n              computeGradientOpacity(gradient, gradientTF);\
+          \n    }"
         );
       }
     }
@@ -970,6 +1082,8 @@ namespace vtkvolume
   {
     std::ostringstream ss;
     int i = 0;
+    int lastComponentMode = -1;
+    std::map<int, std::string> lastColorTableMap;
     for (auto& item : inputs)
     {
       auto prop = item.second.Volume->GetProperty();
@@ -980,14 +1094,31 @@ namespace vtkvolume
       const auto numComp = map.size();
       ss << "uniform sampler2D " << ArrayBaseName(map[0])
         << "[" << numComp <<"];\n";
+
+      lastComponentMode = item.second.ComponentMode;
+      lastColorTableMap = map;
       i++;
     }
 
-    ss <<
-      "vec3 computeColor(const in float scalar, const in sampler2D colorTF)\n"
-      "{\n"
-      "  return texture2D(colorTF, vec2(scalar, 0)).rgb;\n"
-      "}\n";
+    if (lastComponentMode == 2 /* VolumeInput::LA */)
+    {
+      ss <<
+        "vec4 computeColor(vec4 scalar, const in sampler2D colorTF)\
+        \n  {\
+        \n  return computeLighting(vec4(texture2D(colorTF,\
+        \n                         vec2(scalar.w, 0.0)).xyz, opacity), 0);\
+        \n  }\n";
+    }
+    else
+    {
+      ss <<
+        "vec4 computeColor(vec3 texPos, vec4 scalar, float opacity, const in sampler2D colorTF, const in sampler2D gradientTF, int volIdx)\n"
+        "{\n"
+        "  return computeLighting(texPos, vec4(texture2D(colorTF,\n"
+        "                         vec2(scalar.w, 0.0)).xyz, opacity), gradientTF, volIdx, 0);\n"
+        "}\n";
+    }
+
     return ss.str();
   }
 
@@ -1011,9 +1142,9 @@ namespace vtkvolume
     }
 
     ss <<
-          "float computeOpacity(const in float scalar, const in sampler2D opacityTF)\n"
+          "float computeOpacity(vec4 scalar, const in sampler2D opacityTF)\n"
           "{\n"
-          "  return texture2D(opacityTF, vec2(scalar, 0)).r;\n"
+          "  return texture2D(opacityTF, vec2(scalar.w, 0)).r;\n"
           "}\n";
     return ss.str();
   }
@@ -1039,10 +1170,10 @@ namespace vtkvolume
       i++;
     }
 
-    ss<<
-      "float computeGradientOpacity(const in float scalar, const in sampler2D opacityTF)\n"
+    ss <<
+      "float computeGradientOpacity(vec4 grad, const in sampler2D gradientTF)\n"
       "{\n"
-      "  return texture2D(opacityTF, vec2(scalar, 0)).r;\n"
+      "  return texture2D(gradientTF, vec2(grad.w, 0.0)).r;\n"
       "}\n";
     return ss.str();
   }
@@ -1230,7 +1361,7 @@ namespace vtkvolume
     }
     else
     {
-      // Dependent compoennts (RGBA) || Single component
+      // Dependent components (RGBA) || Single component
       toString <<
         "float computeOpacity(vec4 scalar)\n"
         "{\n"
@@ -1448,10 +1579,10 @@ namespace vtkvolume
             if (property->GetTransferFunctionMode() == vtkVolumeProperty::TF_1D)
             {
             toShaderStr <<
-            "        g_srcColor.a = computeOpacity(scalar.r," << input.OpacityTablesMap[0] << ");\n"
+            "        g_srcColor.a = computeOpacity(scalar," << input.OpacityTablesMap[0] << ");\n"
             "        if (g_srcColor.a > 0.0)\n"
             "        {\n"
-            "          g_srcColor.rgb = computeColor(scalar.r, " << input.RGBTablesMap[0]  << ");\n";
+            "          g_srcColor = computeColor(texPos, scalar, g_srcColor.a, " << input.RGBTablesMap[0]  << ", " << input.GradientOpacityTablesMap[0] << ", " << i << ");\n";
 
               if (property->HasGradientOpacity())
               {
@@ -1460,8 +1591,7 @@ namespace vtkvolume
                 "          " << grad << "[0] = computeGradient(texPos, 0, " << "in_volume[" << i << "], " << i << ");\n"
                 "          if ("<< grad << "[0].w >= 0.0)\n"
                 "          {\n"
-                "            g_srcColor.a *= computeGradientOpacity(" << grad << "[0].w, "
-                  << input.GradientOpacityTablesMap[0] << ");\n"
+                "            g_srcColor.a *= computeGradientOpacity(" << grad << "[0], " << input.GradientOpacityTablesMap[0] << ");\n"
                 "          }\n";
               }
             }
