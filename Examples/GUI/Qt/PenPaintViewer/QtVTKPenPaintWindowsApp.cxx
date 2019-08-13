@@ -26,8 +26,18 @@
 #include "vtkTimerLog.h"
 
 #include <deque>
+#include <sstream>
 
 static const int DRAW_HZ = 45;
+enum PenBrushType
+{
+  Dot,
+  Circle,
+  Square,
+  Line,
+  LastBrushType
+};
+
 
 //----------------------------------------------------------------------------
 class vtkPenInteractorExample : public vtkInteractorStyleImage
@@ -42,6 +52,9 @@ public:
 };
 vtkStandardNewMacro(vtkPenInteractorExample);
 
+class vtkPenCallback;
+vtkPenCallback* PenCallbackInstance;
+
 //----------------------------------------------------------------------------
 class vtkPenCallback : public vtkCallbackCommand
 {
@@ -50,9 +63,11 @@ public:
   {
     return new vtkPenCallback;
   }
-
   vtkPenCallback()
-    : FirstPointPlaced(false)
+    : Drawer(nullptr)
+    , ImageViewer(nullptr)
+    , Picker(nullptr)
+    , BrushType(Circle)
   {
   }
 
@@ -71,10 +86,6 @@ public:
     this->Picker = picker;
   }
 
-  //std::deque<QPointF> Points;
-  QPointF LastPoint;
-  bool FirstPointPlaced;
-
   void Execute(vtkObject* vtkNotUsed(caller), unsigned long event, void* vtkNotUsed(callData)) override
   {
     vtkRenderWindowInteractor* interactor = this->ImageViewer->GetRenderWindow()->GetInteractor();
@@ -83,26 +94,14 @@ public:
     {
     case TabletPressEvent:
       this->IsDrawing = true;
+      this->LastPoint = QPoint(-1, -1);
       break;
     case TabletReleaseEvent:
       this->IsDrawing = false;
-      this->FirstPointPlaced = false;
       break;
     case TabletMoveEvent:
       if (this->IsDrawing)
       {
-        //this->Picker->Pick(interactor->GetEventPosition()[0],
-        //  interactor->GetEventPosition()[1],
-        //  0.0, renderer);
-        //QPointF currentPickPoint;
-        //currentPickPoint.setX(this->Picker->GetPickPosition()[0]);
-        //currentPickPoint.setY(this->Picker->GetPickPosition()[1]);
-        ////this->Points.push_back(currentPickPoint);
-        //if (!this->FirstPointPlaced)
-        //{
-        //  return;
-        //}
-
         static double lastDraw = vtkTimerLog::GetUniversalTime();
         if (vtkTimerLog::GetUniversalTime() - lastDraw > 1.0 / DRAW_HZ)
         {
@@ -113,20 +112,6 @@ public:
           currentPickPoint.setX(this->Picker->GetPickPosition()[0]);
           currentPickPoint.setY(this->Picker->GetPickPosition()[1]);
 
-          if (currentPickPoint.x() <= 0 || currentPickPoint.y() <= 0)
-            {
-            this->FirstPointPlaced = false;
-            return;
-            }
-
-          //this->Points.push_back(currentPickPoint);
-          if (!this->FirstPointPlaced)
-          {
-            this->FirstPointPlaced = true;
-            this->LastPoint = currentPickPoint;
-            return;
-          }
-
           lastDraw = vtkTimerLog::GetUniversalTime();
           double maxSize = 25.0;
 
@@ -135,68 +120,132 @@ public:
           if (interactor->GetTabletPointer() == vtkRenderWindowInteractor::TabletPointerType::Eraser)
           {
             this->Drawer->SetDrawColor(0, 0, 0);
-            /*this->Drawer->FillBox(this->Picker->GetPickPosition()[0] - maxSize * interactor->GetScale(), this->Picker->GetPickPosition()[0] + maxSize * interactor->GetScale(),
-                                  this->Picker->GetPickPosition()[1] - maxSize * interactor->GetScale(), this->Picker->GetPickPosition()[1] + maxSize * interactor->GetScale());*/
           }
 
           if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::LeftButton)
           {
-            //this->Drawer->DrawCircle(
-            //  this->Picker->GetPickPosition()[0],
-            //  this->Picker->GetPickPosition()[1],
-            //  maxSize * interactor->GetScale());
-            //for (int i = 0; i < this->Points.size() - 1; ++i)
-            //{
-            //  QPointF point1 = this->Points[i];
-            //  QPointF point2 = this->Points[i+1];
-            //  this->Drawer->FillTube(point1.x(), point1.y(), point2.x(), point2.y(), maxSize * interactor->GetScale());
-            //}
-            //for (int i = 0; i < this->Points.size(); ++i)
-            //{
-            //  this->Drawer->DrawCircle(
-            //    this->Points[i].x(),
-            //    this->Points[i].y(),
-            //    maxSize * interactor->GetScale());
-            //}
-            QPointF point1 = currentPickPoint;
-            QPointF point2 = this->LastPoint;
-            this->Drawer->FillTube(point1.x(), point1.y(), point2.x(), point2.y(), maxSize * interactor->GetScale());
+            switch (this->BrushType)
+            {
+            case Dot:
+              this->Drawer->DrawPoint(
+                this->Picker->GetPickPosition()[0],
+                this->Picker->GetPickPosition()[1]);
+              break;
+            case Circle:
+              this->Drawer->DrawCircle(
+                this->Picker->GetPickPosition()[0],
+                this->Picker->GetPickPosition()[1],
+                maxSize * interactor->GetTabletPressure());
+              break;
+            case Line:
+              if (this->LastPoint.x() >= 0)
+              {
+                this->Drawer->FillTube(currentPickPoint.x(), currentPickPoint.y(),
+                  this->LastPoint.x(), this->LastPoint.y(), maxSize * interactor->GetTabletPressure());
+              }
+              break;
+            case Square:
+              this->Drawer->FillBox(this->Picker->GetPickPosition()[0] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[0] + maxSize * interactor->GetTabletPressure(),
+                this->Picker->GetPickPosition()[1] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[1] + maxSize * interactor->GetTabletPressure());
+              break;
+            default:
+              break;
+            }
           }
           if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::RightButton)
           {
-            this->Drawer->FillBox(this->Picker->GetPickPosition()[0] - maxSize * interactor->GetScale(), this->Picker->GetPickPosition()[0] + maxSize * interactor->GetScale(),
-                                  this->Picker->GetPickPosition()[1] - maxSize * interactor->GetScale(), this->Picker->GetPickPosition()[1] + maxSize * interactor->GetScale());
+
           }
           this->Drawer->SetDrawColor(color);
           this->ImageViewer->Render();
-          //this->Points.clear();
           this->LastPoint = currentPickPoint;
         }
       }
       break;
     case KeyPressEvent:
-      this->Drawer->SetDrawColor(
-        255.0 * (double)rand() / RAND_MAX,
-        255.0 * (double)rand() / RAND_MAX,
-        255.0 * (double)rand() / RAND_MAX);
+      if (strcmp(interactor->GetKeySym(), "period") == 0)
+      {
+        this->NextBrush();
+      }
+      else if (strcmp(interactor->GetKeySym(), "comma") == 0)
+      {
+        this->PreviousBrush();
+      }
+      else if (strcmp(interactor->GetKeySym(), "space") == 0)
+      {
+        this->ChangeColor();
+      }
+      else if (strcmp(interactor->GetKeySym(), "F20") == 0)
+      {
+        this->NextBrush();
+      }
+      else if (strcmp(interactor->GetKeySym(), "Escape") == 0)
+      {
+        this->EraseAll();
+      }
       break;
     default:
       break;
     }
-
   }
 
-  static void MicrosoftSurfaceSingleClickPen()
+  void NextBrush()
   {
-    qCritical() << "Microsoft Surface Pen: Single click";
+    this->BrushType = (this->BrushType + 1) % LastBrushType;
+  }
+
+  void PreviousBrush()
+  {
+    this->BrushType--;
+    if (this->BrushType < 0)
+    {
+      this->BrushType = LastBrushType - 1;
+    }
+  }
+
+  void ChangeColor()
+  {
+    this->Drawer->SetDrawColor(
+      255.0 * (double)rand() / RAND_MAX,
+      255.0 * (double)rand() / RAND_MAX,
+      255.0 * (double)rand() / RAND_MAX);
+  }
+
+  void EraseAll()
+  {
+    double color[4];
+    this->Drawer->GetDrawColor(color);
+    this->Drawer->SetDrawColor(0, 0, 0);
+    vtkImageData* image = this->Drawer->GetOutput();
+    int* extent = image->GetExtent();
+    this->Drawer->FillBox(extent[0], extent[1], extent[2], extent[3]);
+    this->Drawer->SetDrawColor(color);
+    this->ImageViewer->Render();
   }
 
 protected:
   vtkImageCanvasSource2D* Drawer;
   vtkImageViewer2* ImageViewer;
   vtkPropPicker* Picker;
+  QPointF LastPoint;
   bool IsDrawing;
+  int BrushType;
 };
+
+static void SurfacePenMagicButtonSingleClick()
+{
+  PenCallbackInstance->ChangeColor();
+}
+
+static void SurfacePenMagicButtonDoubleClick()
+{
+  PenCallbackInstance->NextBrush();
+}
+
+static void SurfacePenMagicButtonLongClick()
+{
+  PenCallbackInstance->EraseAll();
+}
 
 int main(int argc, char** argv)
 {
@@ -210,8 +259,7 @@ int main(int argc, char** argv)
   int imageSize = 512;
   QApplication app(argc, argv);
   QVTKOpenGLNativeWidget widget;
-
-  widget.resize(imageSize, imageSize);
+  widget.resize(imageSize*2, imageSize*2);
   vtkNew<vtkGenericOpenGLRenderWindow> renWin;
   widget.setRenderWindow(renWin);
 
@@ -251,10 +299,19 @@ int main(int argc, char** argv)
   renWin->GetInteractor()->AddObserver(vtkCommand::TabletReleaseEvent, callback);
   renWin->GetInteractor()->AddObserver(vtkCommand::TabletMoveEvent, callback);
   renWin->GetInteractor()->AddObserver(vtkCommand::KeyPressEvent, callback);
+  PenCallbackInstance = callback;
 
-  QShortcut shortcut(&widget);
-  shortcut.setKey(QKeySequence(Qt::Key_F20 + Qt::META));
-  QObject::connect(&shortcut, &QShortcut::activated, &vtkPenCallback::MicrosoftSurfaceSingleClickPen);
+  QShortcut singleClickShortcut(&widget);
+  singleClickShortcut.setKey(QKeySequence(Qt::Key_F20 + Qt::META));
+  QObject::connect(&singleClickShortcut, &QShortcut::activated, &::SurfacePenMagicButtonSingleClick);
+
+  QShortcut doubleClickShortcut(&widget);
+  doubleClickShortcut.setKey(QKeySequence(Qt::Key_F19 + Qt::META));
+  QObject::connect(&doubleClickShortcut, &QShortcut::activated, &::SurfacePenMagicButtonDoubleClick);
+
+  QShortcut longClickShortcut(&widget);
+  longClickShortcut.setKey(QKeySequence(Qt::Key_F18 + Qt::META));
+  QObject::connect(&longClickShortcut, &QShortcut::activated, &::SurfacePenMagicButtonLongClick);
 
   widget.show();
   imageViewer->Render();

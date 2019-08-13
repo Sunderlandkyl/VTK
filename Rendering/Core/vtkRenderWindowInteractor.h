@@ -594,6 +594,8 @@ public:
   vtkGetMacro(TabletXTilt, double);
   vtkSetMacro(TabletYTilt, double);
   vtkGetMacro(TabletYTilt, double);
+  vtkSetMacro(TabletPressure, double);
+  vtkGetMacro(TabletPressure, double);
 
   //@{
   /**
@@ -876,6 +878,7 @@ protected:
   int TabletPointer;
   double TabletXTilt;
   double TabletYTilt;
+  double TabletPressure;
 
   /**
    * These methods allow the interactor to control which events are

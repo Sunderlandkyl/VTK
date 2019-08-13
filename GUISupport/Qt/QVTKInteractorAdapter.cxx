@@ -142,20 +142,13 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       tabletButtons |= vtkRenderWindowInteractor::TabletButtonType::RightButton;
     }
     iren->SetTabletButtons(tabletButtons);
-    iren->SetTabletPointer(tabletEvent->pointerType() == QTabletEvent::Eraser ?
-      vtkRenderWindowInteractor::TabletPointerType::Eraser : vtkRenderWindowInteractor::TabletPointerType::Pen);
+    iren->SetTabletPointer(tabletEvent->pointerType() == QTabletEvent::Pen ?
+      vtkRenderWindowInteractor::TabletPointerType::Pen : vtkRenderWindowInteractor::TabletPointerType::Eraser);
     iren->SetTabletXTilt(tabletEvent->xTilt());
     iren->SetTabletYTilt(tabletEvent->yTilt());
-    iren->SetScale(tabletEvent->pressure());
+    iren->SetTabletPressure(tabletEvent->pressure());
     switch (tabletEvent->type())
     {
-    //case QEvent::TabletEnterProximity:
-    //  iren->InvokeEvent(vtkCommand::TabletEnterProximityEvent, tabletEvent);
-    //  break;
-    //case QEvent::TabletLeaveProximity:
-    //  iren->InvokeEvent(vtkCommand::TabletLeaveProximityEvent, tabletEvent);
-    //  iren->SetTabletPointer(tabletEvent == QTabletEvent::Eraser); //TODOI: Add pen modifier
-    //  break;
     case QEvent::TabletMove:
       iren->InvokeEvent(vtkCommand::TabletMoveEvent, tabletEvent);
       break;
