@@ -174,6 +174,7 @@ bool QVTKInteractorAdapter::ProcessEvent(QEvent* e, vtkRenderWindowInteractor* i
       break;
     }
     tabletEvent->accept();
+    return true;
   }
 
   if (t == QEvent::TouchBegin ||
