@@ -23,12 +23,10 @@
 #include "vtkImageActor.h"
 #include "vtkLookupTable.h"
 #include "vtkImageMapToWindowLevelColors.h"
-#include "vtkTimerLog.h"
 
 #include <deque>
 #include <sstream>
 
-static const int DRAW_HZ = 45;
 enum PenBrushType
 {
   Dot,
@@ -101,64 +99,60 @@ public:
     case TabletMoveEvent:
       if (this->IsDrawing)
       {
-        static double lastDraw = vtkTimerLog::GetUniversalTime();
-        if (vtkTimerLog::GetUniversalTime() - lastDraw > 1.0 / DRAW_HZ)
+        this->Picker->Pick(interactor->GetEventPosition()[0],
+          interactor->GetEventPosition()[1],
+          0.0, renderer);
+        QPointF currentPickPoint;
+        currentPickPoint.setX(this->Picker->GetPickPosition()[0]);
+        currentPickPoint.setY(this->Picker->GetPickPosition()[1]);
+
+        double maxSize = 25.0;
+
+        double color[4];
+        this->Drawer->GetDrawColor(color);
+        if (interactor->GetTabletPointer() == vtkRenderWindowInteractor::TabletPointerType::Eraser)
         {
-          this->Picker->Pick(interactor->GetEventPosition()[0],
-            interactor->GetEventPosition()[1],
-            0.0, renderer);
-          QPointF currentPickPoint;
-          currentPickPoint.setX(this->Picker->GetPickPosition()[0]);
-          currentPickPoint.setY(this->Picker->GetPickPosition()[1]);
-
-          lastDraw = vtkTimerLog::GetUniversalTime();
-          double maxSize = 25.0;
-
-          double color[4];
-          this->Drawer->GetDrawColor(color);
-          if (interactor->GetTabletPointer() == vtkRenderWindowInteractor::TabletPointerType::Eraser)
-          {
-            this->Drawer->SetDrawColor(0, 0, 0);
-          }
-
-          if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::LeftButton)
-          {
-            switch (this->BrushType)
-            {
-            case Dot:
-              this->Drawer->DrawPoint(
-                this->Picker->GetPickPosition()[0],
-                this->Picker->GetPickPosition()[1]);
-              break;
-            case Circle:
-              this->Drawer->DrawCircle(
-                this->Picker->GetPickPosition()[0],
-                this->Picker->GetPickPosition()[1],
-                maxSize * interactor->GetTabletPressure());
-              break;
-            case Line:
-              if (this->LastPoint.x() >= 0)
-              {
-                this->Drawer->FillTube(currentPickPoint.x(), currentPickPoint.y(),
-                  this->LastPoint.x(), this->LastPoint.y(), maxSize * interactor->GetTabletPressure());
-              }
-              break;
-            case Square:
-              this->Drawer->FillBox(this->Picker->GetPickPosition()[0] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[0] + maxSize * interactor->GetTabletPressure(),
-                this->Picker->GetPickPosition()[1] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[1] + maxSize * interactor->GetTabletPressure());
-              break;
-            default:
-              break;
-            }
-          }
-          if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::RightButton)
-          {
-
-          }
-          this->Drawer->SetDrawColor(color);
-          this->ImageViewer->Render();
-          this->LastPoint = currentPickPoint;
+          this->Drawer->SetDrawColor(0, 0, 0);
         }
+
+        if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::LeftButton)
+        {
+          switch (this->BrushType)
+          {
+          case Dot:
+            this->Drawer->DrawPoint(
+              this->Picker->GetPickPosition()[0],
+              this->Picker->GetPickPosition()[1]);
+            break;
+          case Circle:
+            this->Drawer->DrawCircle(
+              this->Picker->GetPickPosition()[0],
+              this->Picker->GetPickPosition()[1],
+              maxSize * interactor->GetTabletPressure());
+            break;
+          case Line:
+            if (this->LastPoint.x() >= 0)
+            {
+              this->Drawer->FillTube(currentPickPoint.x(), currentPickPoint.y(),
+                this->LastPoint.x(), this->LastPoint.y(), maxSize * interactor->GetTabletPressure());
+            }
+            break;
+          case Square:
+            this->Drawer->FillBox(this->Picker->GetPickPosition()[0] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[0] + maxSize * interactor->GetTabletPressure(),
+              this->Picker->GetPickPosition()[1] - maxSize * interactor->GetTabletPressure(), this->Picker->GetPickPosition()[1] + maxSize * interactor->GetTabletPressure());
+            break;
+          default:
+            break;
+          }
+        }
+        if (interactor->GetTabletButtons() & vtkRenderWindowInteractor::TabletButtonType::RightButton)
+        {
+
+        }
+        this->Drawer->SetDrawColor(color);
+        this->ImageViewer->Render();
+        this->LastPoint = currentPickPoint;
+
       }
       break;
     case KeyPressEvent:
@@ -257,6 +251,8 @@ int main(int argc, char** argv)
 
   int imageSize = 512;
   QApplication app(argc, argv);
+  app.setAttribute(Qt::AA_CompressTabletEvents, true);
+
   QVTKOpenGLNativeWidget widget;
   widget.resize(imageSize*2, imageSize*2);
   vtkNew<vtkGenericOpenGLRenderWindow> renWin;
