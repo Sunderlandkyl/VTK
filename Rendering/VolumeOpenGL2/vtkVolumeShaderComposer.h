@@ -571,9 +571,9 @@ namespace vtkvolume
       {
         shaderStr += std::string(
           "  // Scale values the actual scalar range.\n"
-          "  float range = in_scalarsRange[c][1] - in_scalarsRange[c][0];\n"
-          "  g1 = in_scalarsRange[c][0] + range * g1;\n"
-          "  g2 = in_scalarsRange[c][0] + range * g2;\n"
+          "  float range = in_scalarsRange[4*index+c][1] - in_scalarsRange[4*index+c][0];\n"
+          "  g1 = in_scalarsRange[4*index+c][0] + range * g1;\n"
+          "  g2 = in_scalarsRange[4*index+c][0] + range * g2;\n"
           "\n"
           "  // Central differences: (F_front - F_back) / 2h\n"
           "  g2 = g1 - g2;\n"
