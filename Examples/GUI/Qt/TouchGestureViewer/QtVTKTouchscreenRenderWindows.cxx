@@ -31,18 +31,20 @@
 #include <vtkRenderer.h>
 #include <vtkSphereSource.h>
 #include <vtkTransform.h>
+#include <vtkCallbackCommand.h>
+#include <vtkTimerLog.h>
 
-vtkNew<vtkActor> cubeActor;
-vtkNew<vtkActor> sphereActor;
-vtkNew<vtkActor> cylinderActor;
+vtkSmartPointer<vtkActor> cubeActor;
+vtkSmartPointer<vtkActor> sphereActor;
+vtkSmartPointer<vtkActor> cylinderActor;
 
-vtkNew<vtkSphereSource> sphereSource;
-vtkNew<vtkCubeSource> cubeSource;
-vtkNew<vtkCylinderSource> cylinderSource;
+vtkSmartPointer<vtkSphereSource> sphereSource;
+vtkSmartPointer<vtkCubeSource> cubeSource;
+vtkSmartPointer<vtkCylinderSource> cylinderSource;
 
-vtkNew<vtkTransform> sphereTransform;
-vtkNew<vtkTransform> cubeTransform;
-vtkNew<vtkTransform> cylinderTransform;
+vtkSmartPointer<vtkTransform> sphereTransform;
+vtkSmartPointer<vtkTransform> cubeTransform;
+vtkSmartPointer<vtkTransform> cylinderTransform;
 
 class vtkInteractorStyleMultiTouchCameraExample : public vtkInteractorStyleMultiTouchCamera
 {
@@ -50,6 +52,7 @@ public:
   static vtkInteractorStyleMultiTouchCameraExample* New();
   vtkTypeMacro(vtkInteractorStyleMultiTouchCameraExample, vtkInteractorStyleMultiTouchCamera);
 
+  //----------------------------------------------------------------------------
   void GetPickPosition(double pickPosition[4])
   {
     vtkCamera* camera = this->CurrentRenderer->GetActiveCamera();
@@ -75,6 +78,7 @@ public:
       touchPositionDisplay[1], focalPointDisplay[2], pickPosition);
   }
 
+  //----------------------------------------------------------------------------
   void OnLongTap() override
   {
     if (!this->CurrentRenderer)
@@ -95,9 +99,10 @@ public:
     cylinderTransform->Identity();
     cylinderTransform->Translate(pickPoint);
 
-    this->CurrentRenderer->Render();
+    this->CurrentRenderer->GetRenderWindow()->Render();
   }
 
+  //----------------------------------------------------------------------------
   void OnTap() override
   {
     if (!this->CurrentRenderer)
@@ -113,22 +118,25 @@ public:
     sphereTransform->Identity();
     sphereTransform->Translate(pickPoint);
 
-    this->CurrentRenderer->Render();
+    this->CurrentRenderer->GetRenderWindow()->Render();
   }
 
   bool IsSwiping = false;
+  //----------------------------------------------------------------------------
   void OnStartSwipe() override
   {
     this->IsSwiping = true;
     this->StartGesture();
   }
 
+  //----------------------------------------------------------------------------
   void OnEndSwipe() override
   {
     this->IsSwiping = false;
     this->EndGesture();
   }
 
+  //----------------------------------------------------------------------------
   void OnSwipe() override
   {
     if (!this->CurrentRenderer)
@@ -144,9 +152,10 @@ public:
     sphereActor->GetProperty()->SetColor(rgb);
     cylinderActor->GetProperty()->SetColor(rgb);
 
-    this->CurrentRenderer->Render();
+    this->CurrentRenderer->GetRenderWindow()->Render();
   }
 
+  //----------------------------------------------------------------------------
   void OnPinch() override
   {
     if (this->IsSwiping)
@@ -156,6 +165,7 @@ public:
     Superclass::OnPinch();
   }
 
+  //----------------------------------------------------------------------------
   void OnRotate() override
   {
     if (this->IsSwiping)
@@ -165,6 +175,7 @@ public:
     Superclass::OnRotate();
   }
 
+  //----------------------------------------------------------------------------
   void OnPan() override
   {
     if (this->IsSwiping)
@@ -176,16 +187,22 @@ public:
 };
 vtkStandardNewMacro(vtkInteractorStyleMultiTouchCameraExample);
 
+static void CallbackFunction(
+  vtkObject* caller, long unsigned int eventId, void* clientData, void* callData);
+
+vtkNew<vtkTimerLog> timer;
+
 //----------------------------------------------------------------------------
 QtVTKTouchscreenRenderWindows::QtVTKTouchscreenRenderWindows(int vtkNotUsed(argc), char* argv[])
 {
+
   this->ui = new Ui_QtVTKTouchscreenRenderWindows;
   this->ui->setupUi(this);
 
   vtkSmartPointer<vtkGenericOpenGLRenderWindow> renderWindow =
     vtkSmartPointer<vtkGenericOpenGLRenderWindow>::New();
   this->ui->view->setRenderWindow(renderWindow);
-
+  this->ui->view->setEnableHiDPI(false);
   vtkSmartPointer<vtkRenderer> renderer = vtkSmartPointer<vtkRenderer>::New();
   this->ui->view->renderWindow()->AddRenderer(renderer);
 
@@ -194,6 +211,18 @@ QtVTKTouchscreenRenderWindows::QtVTKTouchscreenRenderWindows(int vtkNotUsed(argc
     vtkSmartPointer<vtkInteractorStyleMultiTouchCameraExample>::New();
   interactor->SetInteractorStyle(interactorStyle);
   renderWindow->SetInteractor(interactor);
+
+  cubeActor = vtkSmartPointer<vtkActor>::New();
+  sphereActor = vtkSmartPointer<vtkActor>::New();
+  cylinderActor = vtkSmartPointer<vtkActor>::New();
+
+  sphereSource = vtkSmartPointer<vtkSphereSource>::New();
+  cubeSource = vtkSmartPointer<vtkCubeSource>::New();
+  cylinderSource = vtkSmartPointer<vtkCylinderSource>::New();
+
+  sphereTransform = vtkSmartPointer<vtkTransform>::New();
+  cubeTransform = vtkSmartPointer<vtkTransform>::New();
+  cylinderTransform = vtkSmartPointer<vtkTransform>::New();
 
   // Create a cube.
   cubeSource->SetXLength(0.5);
@@ -228,4 +257,23 @@ QtVTKTouchscreenRenderWindows::QtVTKTouchscreenRenderWindows(int vtkNotUsed(argc
   renderer->AddActor(cylinderActor);
 
   renderer->SetBackground(0.1, 0.2, 0.4);
+
+  vtkSmartPointer<vtkCallbackCommand> callback = vtkSmartPointer<vtkCallbackCommand>::New();
+  callback->SetCallback(CallbackFunction);
+  renderer->AddObserver(vtkCommand::EndEvent, callback);
+
+  timer->StartTimer();
 };
+
+
+void CallbackFunction(vtkObject* caller, long unsigned int vtkNotUsed(eventId),
+  void* vtkNotUsed(clientData), void* vtkNotUsed(callData))
+{
+  vtkRenderer* renderer = static_cast<vtkRenderer*>(caller);
+
+  double timeInSeconds = renderer->GetLastRenderTimeInSeconds();
+  double fps = 1.0 / timeInSeconds;
+  timer->StopTimer();
+  std::cout << "FPS: " << fps << "\tEffective fps: " << 1.0/timer->GetElapsedTime() << std::endl;
+  timer->StartTimer();
+}

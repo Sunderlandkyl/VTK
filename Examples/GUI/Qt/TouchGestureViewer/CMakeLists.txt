@@ -3,6 +3,7 @@ project(QtVTKTouchscreenRenderWindows)
 
 find_package(VTK
   COMPONENTS
+    CommonSystem
     CommonCore
     GUISupportQt
     IOImage
